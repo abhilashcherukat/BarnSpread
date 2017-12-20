@@ -10,23 +10,25 @@ import MySQLdb
 import collections
 import web
 import random
+import rijndael
+import base64
 
 import time
-import dicttoxml
-import xml.etree.ElementTree as ET
-from xml.etree.ElementTree import fromstring, Element
+
 
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
 urls = (
     '/', 'index',
+    '/test','test',
+    '/barn','barn',
     
 )
 # Server
-db = web.database(dbn='mysql', user='root', pw='igothelp2015', db='igothelp2015 ')
+#db = web.database(dbn='mysql', user='root', pw='MIh3TioWViMDEpLQ', db='igothelp2015 ')
 #Local
-db = web.database(dbn='mysql', user='root', pw='igothelp2015', db='igothelp2015V3')
+db = web.database(dbn='mysql', user='usr_barner', pw='MIh3TioWViMDEpLQ', db='db_barner')
 
 
 
@@ -47,22 +49,32 @@ class test:
 
     def GET(self):
         ComFnObj = Commonfunctions()
-        return json.dumps(ComFnObj.GetCallLogs(27))
-        return 1
+        return ComFnObj.Decrypt(ComFnObj.Encrypt("ABHILSH CHERUKAT"))
 
 
 
 #FOR REUSABLE FUNCTIONS
 class Commonfunctions:
 
+    KEY_SIZE = 16
+    BLOCK_SIZE = 32
+    KEY="345dsfdf32432SDGGF234dksj4djKJKJ"
+    def SMSEmailLog(self,To,From,Type,API,Message):
+        try:
+              db.insert('smsEmailLog',recepient=To,frm=From,details=Type,apiCall=API,message=Message)
 
+        except:
+            self.PrintException("SMSEMailLog")
+    def LogAction(self,API,message,ACT):
+        try:
+            
+            entries = db.insert('actionLog', API=API,lineNumber=0,details=str(message),Type=ACT)
+        except:
+            pass
     def LogError(self, message, APICall, LineNo):
         try:
-            now = datetime.now()
-            date = str(now.year)+"-"+str(now.month)+"-"+str(now.day)+" "
-            time = str(now.hour)+":"+str(now.minute)+":"+str(now.second)
-            entries = db.insert('errorLog', time=date+time,API=APICall,\
-                                        lineNumber=LineNo,details=str(message))
+            
+            entries = db.insert('actionLog', API=APICall,lineNumber=LineNo,details=str(message),Type="ERR")
         except:
             pass
     def SMSEmailLog(self,To,From,Type,API,Message):
@@ -70,7 +82,7 @@ class Commonfunctions:
               db.insert('smsEmailLog',recepient=To,frm=From,details=Type,apiCall=API,message=Message)
 
         #except:
-        #    self.PrintException("SMSEMailLog")
+        #    self.ComFnObj.PrintException("SMSEMailLog")
     def PrintException(self,API):
         try:
             exc_type, exc_obj, tb = sys.exc_info()
@@ -83,14 +95,16 @@ class Commonfunctions:
             linepart=line.strip()
             #linePart="".join(linePart)
             msg=str(exc_obj)+"[" + linepart + "...]"
-            return self.LogError(msg,API,lineno)#
+            self.LogError(msg,API,lineno)
         except:
             pass
+
+
     def SendSMS(self, To, Msg):
-        URL = "http://alerts.sinfini.com/api/web2sms.php?workingkey=663040hvmlrbxmd00792&to=" + str(
-            To) + "&sender=GOTHLP&message=" + Msg
+        URL = "http://alerts.sinfini.com/api/web2sms.php?workingkey=663040hvmlrbxmd00792&to=" + str(To) + "&sender=GOTHLP&message=" + Msg
         response = urllib.urlopen(URL)
         return response
+    
     def SendMail(self, To, From, Subject, Html,Plain):
         try:
             msg = MIMEMultipart('alternative')
@@ -132,6 +146,70 @@ class Commonfunctions:
             web.header('Access-Control-Allow-Headers', '*')
             web.header('Content-Type', 'application/json')
             return  json.dumps(status)
+
+    def Encrypt(self,plaintext):
+
+        padded_key = self.KEY.ljust(self.KEY_SIZE, '\0')
+        padded_text = plaintext + (self.BLOCK_SIZE - len(plaintext) % self.BLOCK_SIZE) * '\0'
+
+        r = rijndael.rijndael(padded_key, self.BLOCK_SIZE)
+
+        ciphertext = ''
+        for start in range(0, len(padded_text), self.BLOCK_SIZE):
+            ciphertext += r.encrypt(padded_text[start:start+self.BLOCK_SIZE])
+
+        encoded = base64.b64encode(ciphertext)
+
+        return encoded
+    def Decrypt(self,ciphertext):
+
+        padded_key = self.KEY.ljust(self.KEY_SIZE, '\0')
+
+        decoded = base64.b64decode(ciphertext)
+
+        r = rijndael.rijndael(padded_key, self.BLOCK_SIZE)
+
+        padded_text = ''
+        for start in range(0, len(decoded), self.BLOCK_SIZE):
+            padded_text += r.decrypt(decoded[start:start+self.BLOCK_SIZE])
+
+        plaintext = padded_text.split('\x00', 1)[0]
+
+        return plaintext
+
+    def Responser(self,response,message="",status='blank'):
+    
+        if status=='blank':
+            status = {"status": "blank", "message": "This page is intentionally left blank.","data":[],"statusCode":200}
+            web.header('Access-Control-Allow-Origin', '*')
+            web.header('Access-Control-Allow-Methods', '*')
+            web.header('Access-Control-Allow-Headers', '*')
+            web.header('Content-Type', 'application/json')
+            return  json.dumps(status)  
+        elif status=='success':
+            
+            status = {"status": "success", "message": message,"data":response,"statusCode":200}
+            web.header('Access-Control-Allow-Origin', '*')
+            web.header('Access-Control-Allow-Methods', '*')
+            web.header('Access-Control-Allow-Headers', '*')
+            web.header('Content-Type', 'application/json')
+            return json.dumps(status)  
+        elif status=='failure':
+            
+            status = {"status": "failed", "message": message,"data":response,"statusCode":200}
+            web.header('Access-Control-Allow-Origin', '*')
+            web.header('Access-Control-Allow-Methods', '*')
+            web.header('Access-Control-Allow-Headers', '*')
+            web.header('Content-Type', 'application/json')
+            return  json.dumps(status)  
+        else:
+            status = {"status": "error", "message": message,"data":response,"statusCode":500}
+            web.header('Access-Control-Allow-Origin', '*')
+            web.header('Access-Control-Allow-Methods', '*')
+            web.header('Access-Control-Allow-Headers', '*')
+            web.header('Content-Type', 'application/json')
+            return  json.dumps(status)  
+    
 
     def GetIdFromAuth(self, AuthCode):
         k = "AuthCode='" + AuthCode + "'"
@@ -222,6 +300,70 @@ class Commonfunctions:
             JArray={"ID":rows[0]['ID'], "Title":rows[0]['Title']}
         return JArray
 
+    def GetBarns(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            JAminities=[]
+            if OPT == "single":
+                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_aminities` FROM `tbl_barn` where `barn_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_aminities` FROM `tbl_barn`"
+           
+            elif OPT=="location":
+                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_aminities` FROM `tbl_barn` where `barn_location`='"+str(value)+"'"
+           
+        
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    if row['barn_aminities']!="":
+                        JAminities=self.GetAminities('closedlist',row['barn_aminities'])
+                    
+                    JObj={"id":self.Encrypt(str(row['barn_id'])),
+                        "location":row['barn_location'],
+                        "title":row['barn_title'],
+                        "poc":row['barn_poc'],
+                        "phone":row['barn_phone'],
+                        "address":row['barn_address'],
+                        "aminities":JAminities
+                        
+                        }
+                    JArray.append(JObj);
+            return JArray
+        except Exception as e:
+            self.PrintException("FN_GetBarns");
+            return e
+
+    def GetAminities(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            JResponse=collections.OrderedDict()
+            if OPT == "single":
+                Query="SELECT `aminities_id`, `aminities_title` FROM `tbl_aminities` WHERE `aminities_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `aminities_id`, `aminities_title` FROM `tbl_aminities`"
+            elif OPT=='closedlist':
+                if value!='':
+                    Query="SELECT `aminities_id`, `aminities_title` FROM `tbl_aminities` where `aminities_id` in ("+str(value)+")"
+                    print Query
+                else:
+                    return []
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj={"id":self.Encrypt(str(row['aminities_id'])),
+                            "title":row['aminities_title'],
+                         }
+                    JArray.append(JObj);
+            return JArray
+        except Exception as e:
+            self.PrintException("FN_GetBarns");
+            return e
 class checkregistration:
     def GET(self):
 
@@ -281,7 +423,7 @@ class checkregistration:
             return  json.dumps(JResponse)
 class verify:
     def GET(self):
-        status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":121}
+        status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":200}
         web.header('Access-Control-Allow-Origin', '*')
         web.header('Access-Control-Allow-Methods', '*')
         web.header('Access-Control-Allow-Headers', '*')
@@ -455,50 +597,49 @@ class login:
             web.header('Content-Type', 'application/json')
             return  json.dumps(JResponse)
 class barn:
+    def GET(self):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list',value=-1)
+
+            Barns=ComFnObj.GetBarns(user_data.opt,user_data.value)
+            return ComFnObj.Responser(Barns,"Barn list","success")
+        except Exception as e:
+            ComFnObj.PrintException("API_BARN_GET")
+            
+            return ComFnObj.Responser(str(e.message),"Error in fetching Barn list","error")
     def POST(self):
         JResponse=collections.OrderedDict()
+        
         try:
 
-                t = db.transaction()
-                ComFnObj = Commonfunctions()
-                # user_data = json.loads(json_input)
-                user_data = web.input(Type=1)
-                if user_data.Type==1:
-                    entries = db.insert('patientprofile', FirstName=user_data.firstname, \
-                                        LastName=user_data.lastname,BirthDate=user_data.dob, \
-                                        Gender=user_data.gender, BloodGroup=user_data.bloodgroup, \
-                                       User_ID=user_data.ID,Relationship=user_data.relationship)
-                else:
-                    entries = db.update('patientprofile', FirstName=user_data.firstname, \
-                                        LastName=user_data.lastname,BirthDate=user_data.dob, \
-                                        Gender=user_data.gender, BloodGroup=user_data.bloodgroup\
-                                       ,Relationship=user_data.relationship, where="User_ID='"+str(user_data.ID)+"'")
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            print user_data.opt
+            if  user_data.opt==str(1):
+                entries = db.insert('tbl_barn', barn_title=user_data.title, \
+                                    barn_location=user_data.location,barn_poc=user_data.poc, \
+                                    barn_phone=user_data.phone, barn_address=user_data.address, \
+                                   barn_aminities=user_data.aminities)
+            elif user_data.opt==str(2):
+                entries = db.update('tbl_barn', barn_title=user_data.title, \
+                                    barn_location=user_data.location,barn_poc=user_data.poc, \
+                                    barn_phone=user_data.phone, barn_address=user_data.address, \
+                                   barn_aminities=user_data.aminities, where="barn_id='"+ComFnObj.Decrypt(str(user_data.id))+"'")
+            else:
+                return ComFnObj.Responser([],"opt must be 1 or 2","failure")    
         except Exception as e:
             t.rollback()
-            JResponse["Info"] ={}
-            JResponse["Success"] =False
-            JResponse["StatusCode"]=600
-            JResponse["Message"] ="Some error happened:"+str(e)
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            
+            ComFnObj.PrintException("API_BARN_POST")
+            return ComFnObj.Responser([],str(e.message),"error")
         else:
-            Msg=[]
-            Msg[1]="Added Successfully"
-            Msg[2]="Updated Successfully"
+           
 
             t.commit()
-            JResponse["Info"] ={}
-            JResponse["Success"] =True
-            JResponse["StatusCode"]=777
-            JResponse["Message"] =Msg[user_data.Type]
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            return ComFnObj.Responser([],"Operation success","success")
 
 
 
