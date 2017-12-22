@@ -22,8 +22,10 @@ from email.mime.text import MIMEText
 urls = (
     '/', 'index',
     '/test','test',
-    '/barn','barn',
-    
+    '/barn/(.*)','barn',
+    '/commonlist/(.*)','commonlist',
+    '/classroom/(.*)','classroom'
+
 )
 # Server
 #db = web.database(dbn='mysql', user='root', pw='MIh3TioWViMDEpLQ', db='igothelp2015 ')
@@ -49,7 +51,7 @@ class test:
 
     def GET(self):
         ComFnObj = Commonfunctions()
-        return ComFnObj.Decrypt(ComFnObj.Encrypt("ABHILSH CHERUKAT"))
+        return ComFnObj.Decrypt("4X0NUZm6VkmgltrVQYqnAUSCuPq6yl4u0r+iP3zXCz8=")
 
 
 
@@ -148,35 +150,40 @@ class Commonfunctions:
             return  json.dumps(status)
 
     def Encrypt(self,plaintext):
+        try:
 
-        padded_key = self.KEY.ljust(self.KEY_SIZE, '\0')
-        padded_text = plaintext + (self.BLOCK_SIZE - len(plaintext) % self.BLOCK_SIZE) * '\0'
+            padded_key = self.KEY.ljust(self.KEY_SIZE, '\0')
+            padded_text = plaintext + (self.BLOCK_SIZE - len(plaintext) % self.BLOCK_SIZE) * '\0'
+            r = rijndael.rijndael(padded_key, self.BLOCK_SIZE)
+            ciphertext = ''
+            for start in range(0, len(padded_text), self.BLOCK_SIZE):
+                ciphertext += r.encrypt(padded_text[start:start+self.BLOCK_SIZE])
+            encoded = base64.b64encode(ciphertext)
+            encoded=encoded.replace("+","%2B")
+            return encoded
+        except Exception as e:
+            print e
+            return "-1"
 
-        r = rijndael.rijndael(padded_key, self.BLOCK_SIZE)
-
-        ciphertext = ''
-        for start in range(0, len(padded_text), self.BLOCK_SIZE):
-            ciphertext += r.encrypt(padded_text[start:start+self.BLOCK_SIZE])
-
-        encoded = base64.b64encode(ciphertext)
-
-        return encoded
     def Decrypt(self,ciphertext):
+        try:
+            ciphertext = ciphertext.replace("%2B", "+")
+            padded_key = self.KEY.ljust(self.KEY_SIZE, '\0')
 
-        padded_key = self.KEY.ljust(self.KEY_SIZE, '\0')
+            decoded = base64.b64decode(ciphertext)
 
-        decoded = base64.b64decode(ciphertext)
+            r = rijndael.rijndael(padded_key, self.BLOCK_SIZE)
 
-        r = rijndael.rijndael(padded_key, self.BLOCK_SIZE)
+            padded_text = ''
+            for start in range(0, len(decoded), self.BLOCK_SIZE):
+                padded_text += r.decrypt(decoded[start:start+self.BLOCK_SIZE])
 
-        padded_text = ''
-        for start in range(0, len(decoded), self.BLOCK_SIZE):
-            padded_text += r.decrypt(decoded[start:start+self.BLOCK_SIZE])
+            plaintext = padded_text.split('\x00', 1)[0]
 
-        plaintext = padded_text.split('\x00', 1)[0]
+            return plaintext
+        except Exception as e:
 
-        return plaintext
-
+            return "-1"
     def Responser(self,response,message="",status='blank'):
     
         if status=='blank':
@@ -305,22 +312,24 @@ class Commonfunctions:
             JArray=[]
             JAminities=[]
             if OPT == "single":
-                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_aminities` FROM `tbl_barn` where `barn_id`="+str(value)
+                ID=self.Decrypt(value)
+                print ID + ":"+ value
+                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_id`='"+ID+"'"
             elif OPT=="list":
-                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_aminities` FROM `tbl_barn`"
+                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`"
            
             elif OPT=="location":
-                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_aminities` FROM `tbl_barn` where `barn_location`='"+str(value)+"'"
+                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_location`='"+str(value)+"'"
            
-        
+
 
             entries = db.query(Query)
             rows = entries.list();
             if rows:
 
                 for row in rows:
-                    if row['barn_aminities']!="":
-                        JAminities=self.GetAminities('closedlist',row['barn_aminities'])
+                    if row['barn_amenities']!="":
+                        JAminities=self.GetAminities('closedlist',row['barn_amenities'])
                     
                     JObj={"id":self.Encrypt(str(row['barn_id'])),
                         "location":row['barn_location'],
@@ -328,11 +337,14 @@ class Commonfunctions:
                         "poc":row['barn_poc'],
                         "phone":row['barn_phone'],
                         "address":row['barn_address'],
-                        "aminities":JAminities
+                        "amenities":JAminities
                         
                         }
                     JArray.append(JObj);
-            return JArray
+            if OPT=="single":
+                return JArray[0]
+            else:
+                return JArray
         except Exception as e:
             self.PrintException("FN_GetBarns");
             return e
@@ -342,12 +354,12 @@ class Commonfunctions:
             JArray=[]
             JResponse=collections.OrderedDict()
             if OPT == "single":
-                Query="SELECT `aminities_id`, `aminities_title` FROM `tbl_aminities` WHERE `aminities_id`="+str(value)
+                Query="SELECT `amenities_id`, `amenities_title` FROM `tbl_amenities` WHERE `amenities_id`="+str(value)
             elif OPT=="list":
-                Query="SELECT `aminities_id`, `aminities_title` FROM `tbl_aminities`"
+                Query="SELECT `amenities_id`, `amenities_title` FROM `tbl_amenities`"
             elif OPT=='closedlist':
                 if value!='':
-                    Query="SELECT `aminities_id`, `aminities_title` FROM `tbl_aminities` where `aminities_id` in ("+str(value)+")"
+                    Query="SELECT `amenities_id`, `amenities_title` FROM `tbl_amenities` where `amenities_id` in ("+str(value)+")"
                     print Query
                 else:
                     return []
@@ -356,13 +368,79 @@ class Commonfunctions:
             if rows:
 
                 for row in rows:
-                    JObj={"id":self.Encrypt(str(row['aminities_id'])),
-                            "title":row['aminities_title'],
+                    JObj={"id":self.Encrypt(str(row['amenities_id'])),
+                            "title":row['amenities_title'],
+                         }
+                    JArray.append(JObj);
+            if OPT=="single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetAminities");
+            return e
+
+    def GetClassrooms(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            JAminities = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_id`='" + ID + "'"
+            elif OPT == "list":
+                Query = "SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom` "
+            elif OPT == "barn":
+                ID = self.Decrypt(value)
+                Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `barn_id_fk`='" + str(
+                    ID) + "'"
+
+            elif OPT == "capacity":
+                Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
+                    value) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['classroom_id'])),
+                            "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
+                            "capacity": row['classroom_capacity']
+                            }
+                    JArray.append(JObj);
+            if OPT=="single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetBarns");
+            return e
+    def GetBookingTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            JResponse=collections.OrderedDict()
+            if OPT == "single":
+                Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` WHERE `amenities_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype`"
+            elif OPT=='closedlist':
+                if value!='':
+                    Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` where `bookingtype_id` in ("+str(value)+")"
+                    print Query
+                else:
+                    return []
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj={"id":self.Encrypt(str(row['bookingtype_id'])),
+                            "title":row['bookingtype_title'],
                          }
                     JArray.append(JObj);
             return JArray
         except Exception as e:
-            self.PrintException("FN_GetBarns");
+            self.PrintException("FN_GetBookingTypes");
             return e
 class checkregistration:
     def GET(self):
@@ -597,11 +675,13 @@ class login:
             web.header('Content-Type', 'application/json')
             return  json.dumps(JResponse)
 class barn:
-    def GET(self):
+    def GET(self,barnid):
         try:
             ComFnObj = Commonfunctions()
             user_data = web.input(opt='list',value=-1)
-
+            if barnid:
+                user_data.opt='single'
+                user_data.value=barnid
             Barns=ComFnObj.GetBarns(user_data.opt,user_data.value)
             return ComFnObj.Responser(Barns,"Barn list","success")
         except Exception as e:
@@ -609,8 +689,7 @@ class barn:
             
             return ComFnObj.Responser(str(e.message),"Error in fetching Barn list","error")
     def POST(self):
-        JResponse=collections.OrderedDict()
-        
+
         try:
 
             t = db.transaction()
@@ -622,12 +701,12 @@ class barn:
                 entries = db.insert('tbl_barn', barn_title=user_data.title, \
                                     barn_location=user_data.location,barn_poc=user_data.poc, \
                                     barn_phone=user_data.phone, barn_address=user_data.address, \
-                                   barn_aminities=user_data.aminities)
+                                   barn_amenities=user_data.amenities)
             elif user_data.opt==str(2):
                 entries = db.update('tbl_barn', barn_title=user_data.title, \
                                     barn_location=user_data.location,barn_poc=user_data.poc, \
                                     barn_phone=user_data.phone, barn_address=user_data.address, \
-                                   barn_aminities=user_data.aminities, where="barn_id='"+ComFnObj.Decrypt(str(user_data.id))+"'")
+                                   barn_amenities=user_data.amenities, where="barn_id='"+ComFnObj.Decrypt(str(user_data.id))+"'")
             else:
                 return ComFnObj.Responser([],"opt must be 1 or 2","failure")    
         except Exception as e:
@@ -636,12 +715,142 @@ class barn:
             ComFnObj.PrintException("API_BARN_POST")
             return ComFnObj.Responser([],str(e.message),"error")
         else:
-           
-
             t.commit()
             return ComFnObj.Responser([],"Operation success","success")
 
+class commonlist:
+    def GET(self, type):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input()
+            if type == "amenities":
+                Jlist = ComFnObj.GetAminities()
+            elif type == "booking":
+                Jlist = ComFnObj.GetBookingTypes()
+            return ComFnObj.Responser(Jlist, type+" list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_BARN_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching "+type+" list", "error")
 
+    def POST(self, type):
+
+        try:
+
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            fieldArr={
+                "booking":["tbl_bookingtype","bookingtype_id", "bookingtype_title"],
+                "amenities": ["tbl_amenities","amenities_id", "amenities_title"]
+
+            }
+
+            if user_data.opt == str(1):
+                Query="insert into `"+fieldArr[type][0]+"` (`"+fieldArr[type][2]+"`) values('"+user_data.title+"')"
+                entries = db.query(Query)
+                #entries = db.insert(fieldArr[type][0], fieldArr[type][2]=user_data.title)
+
+            elif user_data.opt == str(2):
+                Query = "update `" + fieldArr[type][0] + "` set `" + fieldArr[type][2] + "`='" + user_data.title + "' where " +fieldArr[type][1]+" = '" + ComFnObj.Decrypt(str(user_data.id)) + "'"
+                entries = db.query(Query)
+                print entries
+                if entries<=0:
+                    return ComFnObj.Responser([], "No record updated", "failure")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+            if e[0]==1062:
+                message="Title already exist"
+            else:
+                message=str(e.message)
+            ComFnObj.PrintException("API_COMMONLISTING_POST")
+            return ComFnObj.Responser([], message, "error")
+
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class classroom:
+    def GET(self,classid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)
+            if classid:
+                user_data.opt='single'
+                user_data.value=classid
+            Classrooms = ComFnObj.GetClassrooms(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Classrooms, "Classroom list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_BARN_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
+
+    def POST(self):
+
+        try:
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            BarnID=ComFnObj.Decrypt(user_data.barn)
+            if user_data.opt == str(1):
+                entries = db.insert('tbl_classroom', barn_id_fk=BarnID, \
+                                    classroom_capacity=user_data.capacity)
+            elif user_data.opt == str(2):
+                entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
+                                    classroom_capacity=user_data.capacity,
+                                    where="barn_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+
+            ComFnObj.PrintException("API_CLASSROOM_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class table:
+    def GET(self,tableid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)#barn,location,vacancy
+            if tableid:
+                user_data.opt='single'
+                user_data.value=tableid
+            Tables = ComFnObj.GetTables(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Tables, "Classroom list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_BARN_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
+
+    def POST(self):
+
+        try:
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            BarnID=ComFnObj.Decrypt(user_data.barn)
+            if user_data.opt == str(1):
+                entries = db.insert('tbl_classroom', barn_id_fk=BarnID, \
+                                    classroom_capacity=user_data.capacity)
+            elif user_data.opt == str(2):
+                entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
+                                    classroom_capacity=user_data.capacity,
+                                    where="barn_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+
+            ComFnObj.PrintException("API_CLASSROOM_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 
 if __name__ == "__main__":
     app = web.application(urls, globals())
