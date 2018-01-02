@@ -24,7 +24,12 @@ urls = (
     '/test','test',
     '/barn/(.*)','barn',
     '/commonlist/(.*)','commonlist',
-    '/classroom/(.*)','classroom'
+    '/classroom/(.*)','classroom',
+    '/table/(.*)', 'table',
+    '/chair/(.*)', 'chair',
+    '/floor/(.*)', 'floor',
+    '/exhibit/(.*)', 'exhibit',
+    '/organiser/(.*)', 'organiser',
 
 )
 # Server
@@ -413,22 +418,173 @@ class Commonfunctions:
             else:
                 return JArray
         except Exception as e:
-            self.PrintException("FN_GetBarns");
+            self.PrintException("FN_GetClassroom");
             return e
+
+    def GetTables(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            JAminities = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_id`='" + ID + "'"
+            elif OPT == "list":
+                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table` "
+            elif OPT == "barn":
+                ID = self.Decrypt(value)
+                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `barn_id_fk`='" + str(
+                    ID) + "'"
+            elif OPT == "number":
+                 Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(value) + "'"
+            elif OPT == "numberbarn": #Table number in barn
+                BarnID = self.Decrypt(value[0])
+                TableNumber =value[1]
+                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(
+                    TableNumber) + "' and barn_id_fk='"+str(BarnID)+"'"
+
+            #elif OPT == "capacity":
+            #    Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
+            #        value) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['table_id'])),
+                            "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
+                            "number": row['table_number']
+                            }
+                    JArray.append(JObj);
+            if OPT=="single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetTable");
+            return e
+
+    def GetChairs(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            JAminities = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_id`='" + ID + "'"
+            elif OPT == "list":
+                Query = "SELECT `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair` "
+            elif OPT == "table":
+                ID = self.Decrypt(value)
+                Query = "SELECT `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `table_id_fk`='" + str(
+                    ID) + "'"
+            elif OPT == "number":
+                ID = self.Decrypt(value)
+                Query = "SELECT  `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_number`='" + str(
+                    value) + "'"
+            elif OPT == "numbertable": #Table number in barn
+                TableID = self.Decrypt(value[0])
+                ChairNumber =value[1]
+                Query = "SELECT  `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_number`='" + str(
+                    ChairNumber) + "' and table_id_fk='"+str(TableID)+"'"
+            #elif OPT == "capacity":
+            #    Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
+            #        value) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['chair_id'])),
+                            "table": self.GetTables('single',self.Encrypt(str(row['table_id_fk']))),
+                            "number": row['chair_number']
+                            }
+                    JArray.append(JObj);
+            if OPT=="single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetChair");
+            return e
+
+    def GetFloors(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            JAminities = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT  `floor_id`, `floor_capacity` FROM `tbl_floor`  where `barn_id_fk`='" + ID + "'"
+            elif OPT == "list":
+                Query = "SELECT  `floor_id`, `floor_capacity` FROM `tbl_floor` "
+
+           # elif OPT == "capacity":
+          #      Query = " SELECT  `barn_id_fk`, `floor_capacity` FROM `tbl_floor`  where `floor_capacity`='" + str(value) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['floor_id'])),
+                            "barn": self.GetBarns('single', self.Encrypt(str(row['floor_id']))),
+                            "capacity": row['floor_capacity']
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetFloor");
+            return e
+
+    def GetExhibits(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            JAminities = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `exhibit_id`, `barn_id_fk`, `exhibit_capacity` FROM `tbl_exhibit`  where `exhibit_id`='" + ID + "'"
+            elif OPT == "list":
+                Query = "SELECT `exhibit_id`, `barn_id_fk`, `exhibit_capacity` FROM `tbl_exhibit` "
+            elif OPT == "barn":
+                ID = self.Decrypt(value)
+                Query = " SELECT `exhibit_id`, `barn_id_fk`, `exhibit_capacity` FROM `tbl_exhibit`  where `barn_id_fk`='" + str(
+                    ID) + "'"
+
+            elif OPT == "capacity":
+                Query = " SELECT `exhibit_id`, `barn_id_fk`, `exhibit_capacity` FROM `tbl_exhibit`  where `exhibit_capacity`='" + str(
+                    value) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['exhibit_id'])),
+                            "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
+                            "capacity": row['exhibit_capacity']
+                            }
+                    JArray.append(JObj);
+            if OPT=="single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetExhibit");
+            return e
+
     def GetBookingTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
         try:
             JArray=[]
+            value=self.Decrypt(str(value))
             JResponse=collections.OrderedDict()
             if OPT == "single":
-                Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` WHERE `amenities_id`="+str(value)
+                Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` WHERE `bookingtype_id`="+str(value)
             elif OPT=="list":
                 Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype`"
-            elif OPT=='closedlist':
-                if value!='':
-                    Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` where `bookingtype_id` in ("+str(value)+")"
-                    print Query
-                else:
-                    return []
+
             entries = db.query(Query)
             rows = entries.list();
             if rows:
@@ -442,6 +598,115 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetBookingTypes");
             return e
+    def GetEventTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            value = self.Decrypt(str(value))
+            JResponse=collections.OrderedDict()
+            if OPT == "single":
+                Query="SELECT `eventtype_id`, `eventtype_title` FROM `tbl_eventtype` WHERE `eventtype_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `eventtype_id`, `eventtype_title` FROM `tbl_eventtype`"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj={"id":self.Encrypt(str(row['eventtype_id'])),
+                            "title":row['eventtype_title'],
+                         }
+                    JArray.append(JObj);
+            return JArray
+        except Exception as e:
+            self.PrintException("FN_GeteventTypes");
+            return e
+    def GetOrganiserTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            JResponse=collections.OrderedDict()
+            value = self.Decrypt(str(value))
+            if OPT == "single":
+                Query="SELECT `organisertype_id`, `organisertype_title` FROM `tbl_organisertype` WHERE `organisertype_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `organisertype_id`, `organisertype_title` FROM `tbl_organisertype`"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj={"id":self.Encrypt(str(row['organisertype_id'])),
+                            "title":row['organisertype_title'],
+                         }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetOrganiserTypes");
+            return e
+    def GetTags(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            JResponse=collections.OrderedDict()
+
+            if OPT == "single":
+                value = self.Decrypt(str(value))
+                Query="SELECT `tag_id`, `tag_title` FROM `tbl_tags` WHERE `tag_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `tag_id`, `tag_title` FROM `tbl_tags`"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj={"id":self.Encrypt(str(row['tag_id'])),
+                            "title":row['tag_title'],
+                         }
+                    JArray.append(JObj);
+            return JArray
+        except Exception as e:
+            self.PrintException("FN_GetTags");
+            return e
+
+    def GetOrganisers(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` where `organiser_id`='" + str(ID) + "'"
+            elif OPT == "list":
+                Query = "SELECT `organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser`"
+
+            elif OPT == "type":
+                ID = self.Decrypt(value)
+                Query = "SELECT `organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` where `organisertype_id_fk`='" + str(
+                    ID) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    OrgId=self.Encrypt(str(row['organiser_id']))
+                    JObj = {"id": OrgId,
+                            "type": self.GetOrganiserTypes('single',self.Encrypt(str(row['organisertype_id_fk']))),
+                            "name": row['organiser_name'],
+                            "description": row['organiser_description'],
+                            "image": row['organiser_image'],
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetOrganiser");
+            return e
+
 class checkregistration:
     def GET(self):
 
@@ -727,9 +992,15 @@ class commonlist:
                 Jlist = ComFnObj.GetAminities()
             elif type == "booking":
                 Jlist = ComFnObj.GetBookingTypes()
+            elif type == "tags":
+                Jlist = ComFnObj.GetTags()
+            elif type == "event":
+                Jlist = ComFnObj.GetEventTypes()
+            elif type == "organiser":
+                Jlist = ComFnObj.GetOrganiserTypes()
             return ComFnObj.Responser(Jlist, type+" list", "success")
         except Exception as e:
-            ComFnObj.PrintException("API_BARN_GET")
+            ComFnObj.PrintException("API_COMMONLIST_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching "+type+" list", "error")
 
     def POST(self, type):
@@ -742,7 +1013,11 @@ class commonlist:
             user_data = web.input(opt=1)
             fieldArr={
                 "booking":["tbl_bookingtype","bookingtype_id", "bookingtype_title"],
-                "amenities": ["tbl_amenities","amenities_id", "amenities_title"]
+                "amenities": ["tbl_amenities","amenities_id", "amenities_title"],
+                "tags": ["tbl_tags","tag_id", "tag_title"],
+                "organiser": ["tbl_organisertype","organisertype_id", "organisertype_title"],
+                "event": ["tbl_eventtype","eventtype_id", "eventtype_title"]
+
 
             }
 
@@ -783,7 +1058,7 @@ class classroom:
             Classrooms = ComFnObj.GetClassrooms(user_data.opt, user_data.value)
             return ComFnObj.Responser(Classrooms, "Classroom list", "success")
         except Exception as e:
-            ComFnObj.PrintException("API_BARN_GET")
+            ComFnObj.PrintException("API_CLASSROOM_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
 
     def POST(self):
@@ -800,7 +1075,7 @@ class classroom:
             elif user_data.opt == str(2):
                 entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
                                     classroom_capacity=user_data.capacity,
-                                    where="barn_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                                    where="classroom_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
             else:
                 return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
         except Exception as e:
@@ -821,12 +1096,100 @@ class table:
                 user_data.opt='single'
                 user_data.value=tableid
             Tables = ComFnObj.GetTables(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Tables, "Classroom list", "success")
+            return ComFnObj.Responser(Tables, "Table list", "success")
         except Exception as e:
-            ComFnObj.PrintException("API_BARN_GET")
-            return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
+            ComFnObj.PrintException("API_TABLE_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching table list", "error")
 
-    def POST(self):
+    def POST(self,tableid):
+        try:
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            BarnID = ComFnObj.Decrypt(user_data.barn)
+            TableData=ComFnObj.GetTables('numberbarn',[user_data.barn,user_data.number])
+            if len(TableData)==0:
+
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_table', barn_id_fk=BarnID, \
+                                        table_number=user_data.number)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_table', barn_id_fk=BarnID, \
+                                        table_number=user_data.number,
+                                        where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+            else:
+                return ComFnObj.Responser([], "Same table number exist in the barn", "failure")
+
+        except Exception as e:
+            t.rollback()
+
+            ComFnObj.PrintException("API_TABLE_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class chair:
+    def GET(self,chairid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)#barn,location,vacancy
+            if chairid:
+                user_data.opt='single'
+                user_data.value=chairid
+            Chairs = ComFnObj.GetChairs(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Chairs, "Chair list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_TABLE_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching chair list", "error")
+
+    def POST(self,chairid):
+        try:
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            TableID = ComFnObj.Decrypt(user_data.table)
+            ChairData = ComFnObj.GetChairs('numbertable', [user_data.table, user_data.number])
+            if len(ChairData) == 0:
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_chair', table_id_fk=TableID, \
+                                        chair_number=user_data.number)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_chair', table_id_fk=TableID, \
+                                        chair_number=user_data.number,
+                                        where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+            else:
+                return ComFnObj.Responser([], "Same chair number exist in the table", "failure")
+        except Exception as e:
+            t.rollback()
+
+            ComFnObj.PrintException("API_CHAIR_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class floor:
+    def GET(self,floorid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)
+            if floorid:
+                user_data.opt='single'
+                user_data.value=floorid
+            Floors = ComFnObj.GetFloors(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Floors, "Floor list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_FLOOR_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching floor list", "error")
+
+    def POST(self,floorid):
 
         try:
             t = db.transaction()
@@ -835,19 +1198,107 @@ class table:
             user_data = web.input(opt=1)
             BarnID=ComFnObj.Decrypt(user_data.barn)
             if user_data.opt == str(1):
-                entries = db.insert('tbl_classroom', barn_id_fk=BarnID, \
-                                    classroom_capacity=user_data.capacity)
+                entries = db.insert('tbl_floor', floor_id=BarnID, \
+                                    floor_capacity=user_data.capacity)
             elif user_data.opt == str(2):
-                entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
-                                    classroom_capacity=user_data.capacity,
-                                    where="barn_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                entries = db.update('tbl_floor', floor_id=BarnID, \
+                                    floor_capacity=user_data.capacity,
+                                    where="floor_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
             else:
                 return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
         except Exception as e:
             t.rollback()
 
-            ComFnObj.PrintException("API_CLASSROOM_POST")
+            ComFnObj.PrintException("API_FLOOR_POST")
             return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class exhibit:
+    def GET(self,exhibitid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)
+            if exhibitid:
+                user_data.opt='single'
+                user_data.value=exhibitid
+            Exhibits = ComFnObj.GetExhibits(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Exhibits, "Exhibit list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_EXHIBIT_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
+
+    def POST(self,exhibitid):
+
+        try:
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            BarnID=ComFnObj.Decrypt(user_data.barn)
+            if user_data.opt == str(1):
+                entries = db.insert('tbl_exhibit', barn_id_fk=BarnID, \
+                                    exhibit_capacity=user_data.capacity)
+            elif user_data.opt == str(2):
+                entries = db.update('tbl_exhibit', barn_id_fk=BarnID, \
+                                    exhibit_capacity=user_data.capacity,
+                                    where="exhibit_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+
+            ComFnObj.PrintException("API_EXHIBIT_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class organiser:
+    def GET(self, organiserid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)
+            if organiserid:
+                user_data.opt = 'single'
+                user_data.value = organiserid
+            Organiser = ComFnObj.GetOrganisers(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Organiser, "Organiser list", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_ORGANISER_GET")
+
+            return ComFnObj.Responser(str(e.message), "Error in fetching Organiser list", "error")
+
+    def POST(self,organiserid):
+
+        try:
+
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+            user_data = web.input(opt=1)
+            user_data.type=ComFnObj.Decrypt(user_data.type)
+            print user_data.type
+            if user_data.opt == str(1):
+                entries = db.insert('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
+                                    organiser_description=user_data.description,\
+                                    organiser_image=user_data.image)
+            elif user_data.opt == str(2):
+                entries = db.update('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
+                                    organiser_description=user_data.description,\
+                                    organiser_image=user_data.image,
+                                    where="organiser_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_ORGANISER_POST")
+
+            if e[0]==1452:
+                return ComFnObj.Responser([], "Organiser type not in list", "error")
+            else:
+                return ComFnObj.Responser([], str(e.message), "error")
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
