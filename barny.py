@@ -30,6 +30,8 @@ urls = (
     '/floor/(.*)', 'floor',
     '/exhibit/(.*)', 'exhibit',
     '/organiser/(.*)', 'organiser',
+    '/feestructure/(.*)', 'feestructure',
+    '/course/(.*)', 'course',
 
 )
 # Server
@@ -647,6 +649,32 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetOrganiserTypes");
             return e
+    def GetCourseTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+        try:
+            JArray=[]
+            JResponse=collections.OrderedDict()
+            value = self.Decrypt(str(value))
+            if OPT == "single":
+                Query="SELECT `coursetype_id`, `coursetype_title` FROM `tbl_coursetype` WHERE `coursetype_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT `coursetype_id`, `coursetype_title` FROM `tbl_coursetype`"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    JObj={"id":self.Encrypt(str(row['coursetype_id'])),
+                            "title":row['coursetype_title'],
+                         }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetOrganiserTypes");
+            return e
     def GetTags(self, OPT='list', value=-1, datatype="S"): #S is single A is array
         try:
             JArray=[]
@@ -705,6 +733,78 @@ class Commonfunctions:
                 return JArray
         except Exception as e:
             self.PrintException("FN_GetOrganiser");
+            return e
+
+    def GetFeeStructure(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        #print str(value)+" "+OPT
+        try:
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure`  where `feestructure_id`='" + str(ID) + "'"
+            elif OPT == "list":
+                Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure`"
+
+            elif OPT == "course":
+                ID = self.Decrypt(value)
+                Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` `feestructure_id_fk` FROM" \
+                        " `tbl_course` ,`tbl_feestructure` where `feestructure_id_fk`=`feestructure_id` and course_id='" + str(ID) + "'"
+            print Query;
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    FeeId=self.Encrypt(str(row['feestructure_id']))
+                    JObj = {"id": FeeId,
+                            "title": row['feestructure_title'],
+                            "structure": json.loads(row['feestructure_fee'])
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetFeeStructure");
+            return e
+
+    def GetCourse(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
+                        " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course` WHERE course_id='" + str(ID) + "'"
+            elif OPT == "list":
+                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
+                        " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course`"
+            elif OPT == "type":
+                ID = self.Decrypt(value)
+                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, " \
+                        "`course_image`,  `course_status`," \
+                        " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course` where `coursetype_id_fk`='" + str(ID) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    CourseId = self.Encrypt(row['course_id'])
+                    print "This is the encrypted fee structure:"+self.Encrypt(row['feestructure_id_fk']);
+                    FeeStructure=self.GetFeeStructure("single2", self.Encrypt(row['feestructure_id_fk']))
+
+                    JObj = {"id": CourseId,
+                            "title": row['course_title'],
+                            "fee":FeeStructure ,
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetCourse");
             return e
 
 class checkregistration:
@@ -986,6 +1086,7 @@ class barn:
 class commonlist:
     def GET(self, type):
         try:
+            Jlist=[]
             ComFnObj = Commonfunctions()
             user_data = web.input()
             if type == "amenities":
@@ -998,6 +1099,8 @@ class commonlist:
                 Jlist = ComFnObj.GetEventTypes()
             elif type == "organiser":
                 Jlist = ComFnObj.GetOrganiserTypes()
+            elif type == "course":
+                Jlist = ComFnObj.GetCourseTypes()
             return ComFnObj.Responser(Jlist, type+" list", "success")
         except Exception as e:
             ComFnObj.PrintException("API_COMMONLIST_GET")
@@ -1016,7 +1119,8 @@ class commonlist:
                 "amenities": ["tbl_amenities","amenities_id", "amenities_title"],
                 "tags": ["tbl_tags","tag_id", "tag_title"],
                 "organiser": ["tbl_organisertype","organisertype_id", "organisertype_title"],
-                "event": ["tbl_eventtype","eventtype_id", "eventtype_title"]
+                "event": ["tbl_eventtype","eventtype_id", "eventtype_title"],
+                "course": ["tbl_coursetype","coursetype_id", "coursetype_title"]
 
 
             }
@@ -1302,6 +1406,100 @@ class organiser:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+
+class feestructure:
+    def GET(self, feestructureid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)
+            if feestructureid:
+                user_data.value = feestructureid
+            print user_data
+            FeeStructure = ComFnObj.GetFeeStructure(user_data.opt, user_data.value)
+            return ComFnObj.Responser(FeeStructure, "Fee structure", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_FEESTRUCTURE_GET")
+
+            return ComFnObj.Responser(str(e.message), "Error in fetching fee structure list", "error")
+
+    def POST(self,feestructureid):
+
+        try:
+
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+
+            user_data = web.input(opt=1)
+            print json.loads(user_data.structure)
+            if user_data.opt == str(1):
+                entries = db.insert('tbl_feestructure', feestructure_title=user_data.title,feestructure_fee=user_data.structure)
+            elif user_data.opt == str(2):
+                entries = db.update('tbl_feestructure', feestructure_title=user_data.title,feestructure_fee=user_data.structure,where="feestructure_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_FEESTRUCTURE_POST")
+
+            if e[0]==1062:
+                return ComFnObj.Responser([], "Title already exist", "error")
+            else:
+                return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class course:
+    def GET(self, courseid):
+        try:
+            ComFnObj = Commonfunctions()
+            user_data = web.input(opt='list', value=-1)
+            if courseid:
+                user_data.value = courseid
+            Course = ComFnObj.GetCourse(user_data.opt, user_data.value)
+            return ComFnObj.Responser(Course, "Course", "success")
+        except Exception as e:
+            ComFnObj.PrintException("API_COURSE_GET")
+
+            return ComFnObj.Responser(str(e.message), "Error in course structure list", "error")
+
+    def POST(self,courseid):
+
+        try:
+
+            t = db.transaction()
+            ComFnObj = Commonfunctions()
+            # user_data = json.loads(json_input)
+
+            user_data = web.input(opt=1)
+            user_data.feestructure = ComFnObj.Decrypt(str(user_data.feestructure))
+            user_data.coursetype = ComFnObj.Decrypt(str(user_data.coursetype))
+            if user_data.opt == str(1):
+
+                entries = db.insert('tbl_course', course_title=user_data.title,course_desc=user_data.description,
+course_duration=user_data.duration,course_agelimit=user_data.agelimit,
+course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags)
+            elif user_data.opt == str(2):
+                entries = db.update('tbl_course', course_title=user_data.title,course_desc=user_data.description,
+course_duration=user_data.duration,course_agelimit=user_data.agelimit,
+course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            else:
+                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_COURSE_POST")
+
+            if e[0]==1062:
+                return ComFnObj.Responser([], "Title already exist", "error")
+            else:
+                return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
 
 if __name__ == "__main__":
     app = web.application(urls, globals())
