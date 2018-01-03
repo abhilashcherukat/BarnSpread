@@ -199,7 +199,7 @@ class Commonfunctions:
         except Exception as e:
 
             return "-1"
-    
+
     def Responser(self,response,message="",status='blank'):
     
         if status=='blank':
@@ -258,7 +258,7 @@ class Commonfunctions:
         try:
             JResponse=collections.OrderedDict()
             k = "user_authcode='" + str(AuthCode) + "'"
-            entries = db.select('tbl_user', where=k)
+            entries = db.select('tbl_user', what='user_id', where=k)
             rows = entries.list();
             if rows:
                 return True
@@ -750,13 +750,13 @@ class Commonfunctions:
                 Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
                         " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course` WHERE course_id='" + str(ID) + "'"
             elif OPT == "list":
-                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
-                        " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course`"
+                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`," \
+                        " `course_status`, `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course`"
             elif OPT == "type":
                 ID = self.Decrypt(value)
                 Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, " \
-                        "`course_image`,  `course_status`," \
-                        " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course` where `coursetype_id_fk`='" + str(ID) + "'"
+                        "`course_image`,  `course_status`,`feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM " \
+                        "`tbl_course` where `coursetype_id_fk`='" + str(ID) + "'"
 
             entries = db.query(Query)
             rows = entries.list();
@@ -792,19 +792,20 @@ class Commonfunctions:
             JArray = []
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` WHERE `enrolled_id`='" + str(ID) + "'"
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `coursemap_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` WHERE `enrolled_id`='" + str(ID) + "'"
             elif OPT == "list":
-                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled`"
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `coursemap_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled`"
             elif OPT == "user":
                 ID = self.Decrypt(value)
-                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` where `user_id_fk`='" + str(ID) + "'"
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `coursemap_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` where `user_id_fk`='" + str(ID) + "'"
             elif OPT=="isexist":
                 print value
                 userId = self.Decrypt(value[0])
                 courseId = self.Decrypt(value[1])
 
-                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` " \
-                        "FROM `tbl_enrolled` where `user_id_fk`='" + str(userId) + "' and `course_id_fk`='" + str(courseId) + "'"
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `coursemap_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled`,`tbl_classcoursemap`" \
+                        " WHERE `user_id_fk`='" + str(userId) + "' and `course_id_fk`='" + str(courseId) + "' and  `coursemap_id_fk`=`map_id`"
+
 
             entries = db.query(Query)
             rows = entries.list();
@@ -812,12 +813,12 @@ class Commonfunctions:
 
                 for row in rows:
                     EnrollId = self.Encrypt(str(row['enrolled_id']))
-                    CourseId = self.Encrypt(str(row['course_id_fk']))
+                    CourseMapId = self.Encrypt(str(row['coursemap_id_fk']))
 
                     JObj = {"id": EnrollId,
-                            "course": self.GetCourse("single",CourseId),
-                            "date": str(row['enrolled_date']),
-                            "status":row['enrolled_status']
+                            "map": self.GetCourseClassMap("single",CourseMapId),
+                            #"date": str(row['enrolled_date']),
+                            #"status":row['enrolled_status']
                         }
                     JArray.append(JObj);
             if OPT == "single":
@@ -856,6 +857,43 @@ class Commonfunctions:
                         }
                     JArray.append(JObj);
             if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetProfiles");
+            return e
+    def GetCourseClassMap(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `map_id`, `course_id_fk`, `barn_id_fk` FROM `tbl_classcoursemap` WHERE  map_id='" + str(ID) + "'"
+            elif OPT == "list":
+                Query = "SELECT `map_id`, `course_id_fk`, `barn_id_fk` FROM `tbl_classcoursemap`"
+            elif OPT=='getidfromcnb':
+                barnId = self.Decrypt(value[0])
+                courseId = self.Decrypt(value[1])
+                Query = "SELECT `map_id`, `course_id_fk`, `barn_id_fk` FROM `tbl_classcoursemap` WHERE" \
+                        " `barn_id_fk`='" + str(barnId) + "' and `course_id_fk`='" + str(courseId) + "'"
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+                if OPT=='getidfromcnb':
+                    return self.Encrypt(str(rows[0]['map_id']))
+                for row in rows:
+                    CourseId = self.Encrypt(str(row['course_id_fk']))
+                    print row['course_id_fk']
+                    BarnId = self.Encrypt(str(row['barn_id_fk']))
+                    MapId = self.Encrypt(str(row['map_id']))
+
+
+                    JObj = {"id":MapId ,
+                            "course": self.GetCourse("single",CourseId),
+                            "barn": self.GetBarns("single",BarnId)
+                           }
+                    JArray.append(JObj);
+            if OPT == "single" or OPT=="getidfromcnb":
                 return JArray[0]
             else:
                 return JArray
@@ -1561,8 +1599,14 @@ class course:
     course_duration=user_data.duration,course_agelimit=user_data.agelimit,
     course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
     coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags)
+                    locations=json.loads(user_data.location)
+                    for location in locations:
+                        db.insert('tbl_classcoursemap',course_id_fk=entries,barn_id_fk=ComFnObj.Decrypt(location))
+
                 elif user_data.opt == str(2):
-                    entries = db.update('tbl_course', course_title=user_data.title,course_desc=user_data.description,
+                    if courseid:
+                        user_data.id = courseid
+                        entries = db.update('tbl_course', course_title=user_data.title,course_desc=user_data.description,
     course_duration=user_data.duration,course_agelimit=user_data.agelimit,
     course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
     coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
@@ -1585,7 +1629,6 @@ class course:
 class enroll:
     def GET(self, courseid):
         try:
-
             ComFnObj = Commonfunctions()
             return ComFnObj.Responser([], "", "blank")
         except:
@@ -1609,9 +1652,12 @@ class enroll:
                     if user_data.opt == str(1):
                         if ComFnObj.GetEnrolledCourse("isexist",[ComFnObj.Encrypt(str(userid)),courseid]):
                             raise ValueError("Already enrolled")
-                        entries = db.insert('tbl_enrolled',user_id_fk=userid,course_id_fk=courseid2,enrolled_status="STATUS")
+
+                        MapID=ComFnObj.Decrypt(ComFnObj.GetCourseClassMap("getidfromcnb",[user_data.location,courseid]))
+                        entries = db.insert('tbl_enrolled',user_id_fk=userid,coursemap_id_fk=MapID,enrolled_status="STATUS")
                     elif user_data.opt == str(2):
-                        entries = db.update('tbl_enrolled',user_id_fk=userid,course_id_fk=courseid2,enrolled_status=user_data.status,
+                        MapID = ComFnObj.Decrypt(ComFnObj.GetCourseClassMap("getidfromcnb", [user_data.location, courseid]))
+                        entries = db.update('tbl_enrolled',user_id_fk=userid,coursemap_id_fk=MapID,enrolled_status=user_data.status,
                                             where="enrolled_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
                     else:
                         return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
@@ -1643,8 +1689,9 @@ class profile:
                 if profileid:
                     user_data.opt='single'
                     user_data.value=profileid
-                print profileid
+
                 Profiles = ComFnObj.GetProfiles(user_data.opt, user_data.value)
+                print Profiles
                 return ComFnObj.Responser(Profiles, "Profile list", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
