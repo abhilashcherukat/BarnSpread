@@ -32,6 +32,14 @@ urls = (
     '/organiser/(.*)', 'organiser',
     '/feestructure/(.*)', 'feestructure',
     '/course/(.*)', 'course',
+    '/enroll/(.*)', 'enroll',
+    '/profile/(.*)', 'profile',
+
+
+    '/register', 'register',
+    '/login', 'login',
+
+
 
 )
 # Server
@@ -191,6 +199,7 @@ class Commonfunctions:
         except Exception as e:
 
             return "-1"
+    
     def Responser(self,response,message="",status='blank'):
     
         if status=='blank':
@@ -226,11 +235,11 @@ class Commonfunctions:
     
 
     def GetIdFromAuth(self, AuthCode):
-        k = "AuthCode='" + AuthCode + "'"
-        entries = db.select('user', what='ID', where=k)
+        k = "user_authcode='" + AuthCode + "'"
+        entries = db.select('tbl_user', what='user_id', where=k)
         rows = entries.list();
         if rows:
-            return rows[0]['ID']
+            return rows[0]['user_id']
         else:
             return -1
     def GetIdFromPhone(self, Number, Type):  #Type= 'USR' for User and 'DOC for Doctor'
@@ -248,52 +257,15 @@ class Commonfunctions:
     def CheckAuth(self, AuthCode):
         try:
             JResponse=collections.OrderedDict()
-            print "Authcode Passed",str(AuthCode)
-            k = "AuthCode='" + str(AuthCode) + "'"
-            entries = db.select('user', where=k)
+            k = "user_authcode='" + str(AuthCode) + "'"
+            entries = db.select('tbl_user', where=k)
             rows = entries.list();
             if rows:
-                for row in rows:
-                    JArray={"ID":str(row['ID']),\
-                         "FirstName":row['FirstName'],\
-                         "LastName":row['LastName'],\
-                         "Phone":row['Phone'],\
-                         "Email":row['Email'],\
-                         "Birthday":row['BirthDate'],\
-                         "Gender":row['Gender'],\
-                         "BloodGroup":row['BloodGroup'],\
-                         "RegistrationDate":row['RegistrationDate'],\
-                         "AuthCode":row['AuthCode']\
-                        }
-                JResponse["SubscriptionData"]=JArray
-                JResponse["Success"] =True
-                JResponse["StatusCode"]=777
-                JResponse["Message"] ="Record retrived successfully"
-                web.header('Access-Control-Allow-Origin', '*')
-                web.header('Access-Control-Allow-Methods', '*')
-                web.header('Access-Control-Allow-Headers', '*')
-                web.header('Content-Type', 'application/json')
-                return  json.dumps(JResponse)
+                return True
             else:
-                JResponse["SubscriptionData"]={}
-                JResponse["Success"] =True
-                JResponse["StatusCode"]=121
-                JResponse["Message"] ="No user exist"
-                web.header('Access-Control-Allow-Origin', '*')
-                web.header('Access-Control-Allow-Methods', '*')
-                web.header('Access-Control-Allow-Headers', '*')
-                web.header('Content-Type', 'application/json')
-                return  json.dumps(JResponse)
+                return False
         except Exception as e:
-            JResponse["Info"]={}
-            JResponse["Success"] =False
-            JResponse["StatusCode"]=600
-            JResponse["Message"] ="Some Error Happened"+str(e)
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            return False
     def GenerateOTP(self,Phone,Count=4):
         m = hashlib.md5()
         now = datetime.now()
@@ -749,7 +721,7 @@ class Commonfunctions:
                 ID = self.Decrypt(value)
                 Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` `feestructure_id_fk` FROM" \
                         " `tbl_course` ,`tbl_feestructure` where `feestructure_id_fk`=`feestructure_id` and course_id='" + str(ID) + "'"
-            print Query;
+
             entries = db.query(Query)
             rows = entries.list();
             if rows:
@@ -771,6 +743,7 @@ class Commonfunctions:
 
     def GetCourse(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
         try:
+
             JArray = []
             if OPT == "single":
                 ID = self.Decrypt(value)
@@ -790,13 +763,20 @@ class Commonfunctions:
             if rows:
 
                 for row in rows:
-                    CourseId = self.Encrypt(row['course_id'])
-                    print "This is the encrypted fee structure:"+self.Encrypt(row['feestructure_id_fk']);
-                    FeeStructure=self.GetFeeStructure("single2", self.Encrypt(row['feestructure_id_fk']))
+                    CourseId = self.Encrypt(str(row['course_id']))
+                    FeeStructure=self.GetFeeStructure("single", self.Encrypt(str(row['feestructure_id_fk'])))
+                    CourseType=self.GetCourseTypes("single", self.Encrypt(str(row['coursetype_id_fk'])))
 
                     JObj = {"id": CourseId,
                             "title": row['course_title'],
-                            "fee":FeeStructure ,
+                            "type":CourseType,
+                            "fee":FeeStructure,
+                            "description":row['course_desc'],
+                            "duration":json.loads(row['course_duration']),
+                            "agelimit":json.loads(row['course_agelimit']),
+                            "image":row['course_image'],
+                            "status":row['course_status'],
+                            "tags":row['course_tags'],
                             }
                     JArray.append(JObj);
             if OPT == "single":
@@ -806,16 +786,87 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetCourse");
             return e
+    def GetEnrolledCourse(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
 
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` WHERE `enrolled_id`='" + str(ID) + "'"
+            elif OPT == "list":
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled`"
+            elif OPT == "user":
+                ID = self.Decrypt(value)
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` where `user_id_fk`='" + str(ID) + "'"
+            elif OPT=="isexist":
+                print value
+                userId = self.Decrypt(value[0])
+                courseId = self.Decrypt(value[1])
+
+                Query = "SELECT `enrolled_id`, `user_id_fk`, `course_id_fk`, `enrolled_date`, `enrolled_status` " \
+                        "FROM `tbl_enrolled` where `user_id_fk`='" + str(userId) + "' and `course_id_fk`='" + str(courseId) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    EnrollId = self.Encrypt(str(row['enrolled_id']))
+                    CourseId = self.Encrypt(str(row['course_id_fk']))
+
+                    JObj = {"id": EnrollId,
+                            "course": self.GetCourse("single",CourseId),
+                            "date": str(row['enrolled_date']),
+                            "status":row['enrolled_status']
+                        }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetEnrollCourse");
+            return e
+    def GetProfiles(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = " SELECT `user_id`, `user_name`, `user_dob`, `user_phone`, " \
+                        "`user_email`, `user_status`, `isCollective`, `user_authcode` FROM `tbl_user` WHERE user_id='" + str(ID) + "'"
+            elif OPT == "list":
+                Query = " SELECT `user_id`, `user_name`, `user_dob`, `user_phone`, `user_email`, `user_status`, `isCollective`, `user_authcode` FROM `tbl_user`"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    UserId = self.Encrypt(str(row['user_id']))
+
+
+                    JObj = {"id": UserId,
+                            "enrolled": self.GetEnrolledCourse("user",UserId),
+                            "name": row['user_name'],
+                            "phone": row['user_phone'],
+                            "email": row['user_email'],
+                            "status": row['user_status'],
+                            "iscollective": row['isCollective'],
+                            "DOB":row['user_dob']
+                        }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetProfiles");
+            return e
 class checkregistration:
     def GET(self):
 
-        status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":121,"success":True}
-        web.header('Access-Control-Allow-Origin', '*')
-        web.header('Access-Control-Allow-Methods', '*')
-        web.header('Access-Control-Allow-Headers', '*')
-        web.header('Content-Type', 'application/json')
-        return  json.dumps(status)
+        ComFnObj = Commonfunctions()
+        return ComFnObj.Responser([], "")
 
 
     def POST(self):
@@ -835,35 +886,13 @@ class checkregistration:
                 ComFnObj.SendSMS(data.phone, Message)
                 db.query("update user set OTP="+str(OTP)+" where Phone='"+data.phone+"'")
                 JResponse["Info"] ={}
-                JResponse["Success"] =True
-                JResponse["StatusCode"]=777
-                JResponse["Message"] ="OTP Send"
-                web.header('Access-Control-Allow-Origin', '*')
-                web.header('Access-Control-Allow-Methods', '*')
-                web.header('Access-Control-Allow-Headers', '*')
-                web.header('Content-Type', 'application/json')
-                return  json.dumps(JResponse)
 
-            else:
-                JResponse["Info"] ={}
-                JResponse["Success"] =True
-                JResponse["StatusCode"]=121
-                JResponse["Message"] ="Registration Required"
-                web.header('Access-Control-Allow-Origin', '*')
-                web.header('Access-Control-Allow-Methods', '*')
-                web.header('Access-Control-Allow-Headers', '*')
-                web.header('Content-Type', 'application/json')
-                return  json.dumps(JResponse)
+                return ComFnObj.Responser(JResponse, "","success")
+
         except Exception as e:
-            JResponse["Info"] ={}
-            JResponse["Success"] =False
-            JResponse["StatusCode"]=600
-            JResponse["Message"] ="Some error happened:"+str(e)
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            return ComFnObj.Responser({}, "Some error happened:"+str(e), "error")
+
+
 class verify:
     def GET(self):
         status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":200}
@@ -915,12 +944,7 @@ class verify:
 class register:
     def GET(self):
         ComFnObj = Commonfunctions()
-        status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":121,"success":True}
-        web.header('Access-Control-Allow-Origin', '*')
-        web.header('Access-Control-Allow-Methods', '*')
-        web.header('Access-Control-Allow-Headers', '*')
-        web.header('Content-Type', 'application/json')
-        return  json.dumps(status)
+        return ComFnObj.Responser([],"")
 
 
     def POST(self):
@@ -931,177 +955,149 @@ class register:
             # user_data = json.loads(json_input)
             user_data = web.input()
             Salt = "$343dddSS"
-            String = user_data.firstname + user_data.phone + Salt
+            String = user_data.fullname + user_data.email + Salt
             m = hashlib.md5()
             m.update(String)
             Authcode = m.hexdigest()
-            OTP = ComFnObj.GenerateOTP(user_data.phone,4)
-            print OTP
-            entries = db.insert('user', FirstName=user_data.firstname, \
-                                    LastName=user_data.lastname, Phone=user_data.phone, \
-                                    Email=user_data.email, BirthDate=user_data.dob, \
-                                    Gender=user_data.gender, BloodGroup=user_data.bloodgroup, \
-                                    AuthCode=Authcode,OTP=OTP)
+            #OTP = ComFnObj.GenerateOTP(user_data.phone,4)
 
-            Message = "Please verify your phone number using this OTP " + OTP
-            ComFnObj.SendSMS(user_data.phone, Message)
+            entries = db.insert('tbl_user', user_name=user_data.fullname,user_email=user_data.email,user_password=ComFnObj.Encrypt(user_data.password),user_status="JST_RGIST",isCollective=0,user_authcode=Authcode)
+
+            """Message = "Please verify your phone number using this OTP " + OTP
+            'ComFnObj.SendSMS(user_data.phone, Message)
             #render = web.template.render('/var/www/html/Templates')
-            render = web.template.render('Templates')
-            USERNAME=user_data.firstname+" "+user_data.lastname
-            Returner=render.Welcome(USERNAME)
-            MailBody=Returner['__body__']
-            MailBodyPlain="Registration Complete"
-            ComFnObj.SendMail(user_data.email,"support@igothelp.com","Welcome to I Got Helps",MailBody,MailBodyPlain)
+            'render = web.template.render('Templates')
+            'USERNAME=user_data.firstname+" "+user_data.lastname
+            'Returner=render.Welcome(USERNAME)
+            'MailBody=Returner['__body__']
+            'MailBodyPlain="Registration Complete"
+            'ComFnObj.SendMail(user_data.email,"support@igothelp.com","Welcome to I Got Helps",MailBody,MailBodyPlain)"""
 
         except MySQLdb.IntegrityError, e:
             t.rollback()
-            JResponse["Info"] ={}
-            JResponse["Success"] =False
-            JResponse["StatusCode"]=600
-            JResponse["Message"] ="Some error happened:"+str(e)
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            if e[0]==1062:
+                return ComFnObj.Responser([], "Email address already exist", "error")
+            return ComFnObj.Responser([], str(e), "error2")
         except Exception as e:
             t.rollback()
-            JResponse["Info"] ={}
-            JResponse["Success"] =False
-            JResponse["StatusCode"]=600
-            JResponse["Message"] ="Some error happened:"+str(e)
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            return ComFnObj.Responser([], "Registration:"+str(e), "error")
         else:
             t.commit()
-            JResponse["Info"] ={}
-            JResponse["Success"] =True
-            JResponse["StatusCode"]=777
-            JResponse["Message"] ="OTP Send"
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+            return ComFnObj.Responser([], "Registration", "success")
 class login:
     def GET(self):
         ComFnObj = Commonfunctions()
-        user_data = web.input()
-        print user_data.Phone
-        status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":121,"success":True}
-        web.header('Access-Control-Allow-Origin', '*')
-        web.header('Access-Control-Allow-Methods', '*')
-        web.header('Access-Control-Allow-Headers', '*')
-        web.header('Content-Type', 'application/json')
-        return  json.dumps(status)
+        return ComFnObj.Responser([], "")
 
 
     def POST(self):
         ComFnObj = Commonfunctions()
         user_data = web.input()
-        header = web.ctx.environ
-        Authcode = header.get('HTTP_AUTHCODE')
-        JResponse=collections.OrderedDict();
         try:
-            flag = 0
-            Id1 = ComFnObj.GetIdFromPhone(user_data.Phone, "USR")
-            Id2 = ComFnObj.GetIdFromAuth(Authcode)
-            if (Id1 != Id2):
-                JResponse["Info"] ={}
-                JResponse["Success"] =True
-                JResponse["StatusCode"]=777
-                JResponse["Message"] ="Login Successfull"
-                web.header('Access-Control-Allow-Origin', '*')
-                web.header('Access-Control-Allow-Methods', '*')
-                web.header('Access-Control-Allow-Headers', '*')
-                web.header('Content-Type', 'application/json')
-                return  json.dumps(JResponse)
+            Query = "SELECT `user_id`, `user_name`, `user_dob`, `user_phone`, `user_email`, `user_password`," \
+                    " `user_status`, `isCollective`, `user_authcode` FROM `tbl_user`" \
+                    " WHERE `user_password`='"+ComFnObj.Encrypt(user_data.password)+"' and `user_email`='"+user_data.email+"'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                row=rows[0]
+                userid=row['user_id']
+                JObj = {"id": userid,
+                        "name": row['user_name'],
+                        "DOB": row['user_dob'],
+                        "phone": row['user_phone'],
+                        "email": row['user_email'],
+                        "status": row['user_status'],
+                        "isCollective": row['isCollective'],
+                        "authcode": row['user_authcode'],
+                        }
+                return ComFnObj.Responser(JObj, "User details", "success")
             else:
-                JResponse["Info"] ={}
-                JResponse["Success"] =True
-                JResponse["StatusCode"]=121
-                JResponse["Message"] ="Login Failed"
-                web.header('Access-Control-Allow-Origin', '*')
-                web.header('Access-Control-Allow-Methods', '*')
-                web.header('Access-Control-Allow-Headers', '*')
-                web.header('Content-Type', 'application/json')
-                return  json.dumps(JResponse)
-        except:
-            JResponse["Info"] ={}
-            JResponse["Success"] =False
-            JResponse["StatusCode"]=600
-            JResponse["Message"] ="Some Error happened"
-            web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
-            web.header('Access-Control-Allow-Headers', '*')
-            web.header('Content-Type', 'application/json')
-            return  json.dumps(JResponse)
+                return ComFnObj.Responser({}, "Login Failed", "failure")
+        except Exception as e:
+            ComFnObj.PrintException("API_LOGIN_GET")
+            return ComFnObj.Responser(str(e.message), "Error in login", "error")
+
+
 class barn:
     def GET(self,barnid):
         try:
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list',value=-1)
-            if barnid:
-                user_data.opt='single'
-                user_data.value=barnid
-            Barns=ComFnObj.GetBarns(user_data.opt,user_data.value)
-            return ComFnObj.Responser(Barns,"Barn list","success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                user_data = web.input(opt='list',value=-1)
+                if barnid:
+                    user_data.opt='single'
+                    user_data.value=barnid
+                Barns=ComFnObj.GetBarns(user_data.opt,user_data.value)
+                return ComFnObj.Responser(Barns,"Barn list","success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_BARN_GET")
-            
             return ComFnObj.Responser(str(e.message),"Error in fetching Barn list","error")
     def POST(self):
 
         try:
 
-            t = db.transaction()
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            print user_data.opt
-            if  user_data.opt==str(1):
-                entries = db.insert('tbl_barn', barn_title=user_data.title, \
-                                    barn_location=user_data.location,barn_poc=user_data.poc, \
-                                    barn_phone=user_data.phone, barn_address=user_data.address, \
-                                   barn_amenities=user_data.amenities)
-            elif user_data.opt==str(2):
-                entries = db.update('tbl_barn', barn_title=user_data.title, \
-                                    barn_location=user_data.location,barn_poc=user_data.poc, \
-                                    barn_phone=user_data.phone, barn_address=user_data.address, \
-                                   barn_amenities=user_data.amenities, where="barn_id='"+ComFnObj.Decrypt(str(user_data.id))+"'")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                # user_data = json.loads(json_input)
+                user_data = web.input(opt=1)
+
+                if  user_data.opt==str(1):
+                    entries = db.insert('tbl_barn', barn_title=user_data.title, \
+                                        barn_location=user_data.location,barn_poc=user_data.poc, \
+                                        barn_phone=user_data.phone, barn_address=user_data.address, \
+                                       barn_amenities=user_data.amenities)
+                elif user_data.opt==str(2):
+                    entries = db.update('tbl_barn', barn_title=user_data.title, \
+                                        barn_location=user_data.location,barn_poc=user_data.poc, \
+                                        barn_phone=user_data.phone, barn_address=user_data.address, \
+                                       barn_amenities=user_data.amenities, where="barn_id='"+ComFnObj.Decrypt(str(user_data.id))+"'")
+                else:
+                    return ComFnObj.Responser([],"opt must be 1 or 2","failure")
             else:
-                return ComFnObj.Responser([],"opt must be 1 or 2","failure")    
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
-            
             ComFnObj.PrintException("API_BARN_POST")
             return ComFnObj.Responser([],str(e.message),"error")
         else:
             t.commit()
             return ComFnObj.Responser([],"Operation success","success")
 
+
 class commonlist:
     def GET(self, type):
         try:
             Jlist=[]
             ComFnObj = Commonfunctions()
-            user_data = web.input()
-            if type == "amenities":
-                Jlist = ComFnObj.GetAminities()
-            elif type == "booking":
-                Jlist = ComFnObj.GetBookingTypes()
-            elif type == "tags":
-                Jlist = ComFnObj.GetTags()
-            elif type == "event":
-                Jlist = ComFnObj.GetEventTypes()
-            elif type == "organiser":
-                Jlist = ComFnObj.GetOrganiserTypes()
-            elif type == "course":
-                Jlist = ComFnObj.GetCourseTypes()
-            return ComFnObj.Responser(Jlist, type+" list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                user_data = web.input()
+                if type == "amenities":
+                    Jlist = ComFnObj.GetAminities()
+                elif type == "booking":
+                    Jlist = ComFnObj.GetBookingTypes()
+                elif type == "tags":
+                    Jlist = ComFnObj.GetTags()
+                elif type == "event":
+                    Jlist = ComFnObj.GetEventTypes()
+                elif type == "organiser":
+                    Jlist = ComFnObj.GetOrganiserTypes()
+                elif type == "course":
+                    Jlist = ComFnObj.GetCourseTypes()
+                return ComFnObj.Responser(Jlist, type+" list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_COMMONLIST_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching "+type+" list", "error")
@@ -1110,34 +1106,40 @@ class commonlist:
 
         try:
 
-            t = db.transaction()
+
             ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
             # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            fieldArr={
-                "booking":["tbl_bookingtype","bookingtype_id", "bookingtype_title"],
-                "amenities": ["tbl_amenities","amenities_id", "amenities_title"],
-                "tags": ["tbl_tags","tag_id", "tag_title"],
-                "organiser": ["tbl_organisertype","organisertype_id", "organisertype_title"],
-                "event": ["tbl_eventtype","eventtype_id", "eventtype_title"],
-                "course": ["tbl_coursetype","coursetype_id", "coursetype_title"]
+                user_data = web.input(opt=1)
+                fieldArr={
+                    "booking":["tbl_bookingtype","bookingtype_id", "bookingtype_title"],
+                    "amenities": ["tbl_amenities","amenities_id", "amenities_title"],
+                    "tags": ["tbl_tags","tag_id", "tag_title"],
+                    "organiser": ["tbl_organisertype","organisertype_id", "organisertype_title"],
+                    "event": ["tbl_eventtype","eventtype_id", "eventtype_title"],
+                    "course": ["tbl_coursetype","coursetype_id", "coursetype_title"]
 
 
-            }
+                }
 
-            if user_data.opt == str(1):
-                Query="insert into `"+fieldArr[type][0]+"` (`"+fieldArr[type][2]+"`) values('"+user_data.title+"')"
-                entries = db.query(Query)
-                #entries = db.insert(fieldArr[type][0], fieldArr[type][2]=user_data.title)
+                if user_data.opt == str(1):
+                    Query="insert into `"+fieldArr[type][0]+"` (`"+fieldArr[type][2]+"`) values('"+user_data.title+"')"
+                    entries = db.query(Query)
+                    #entries = db.insert(fieldArr[type][0], fieldArr[type][2]=user_data.title)
 
-            elif user_data.opt == str(2):
-                Query = "update `" + fieldArr[type][0] + "` set `" + fieldArr[type][2] + "`='" + user_data.title + "' where " +fieldArr[type][1]+" = '" + ComFnObj.Decrypt(str(user_data.id)) + "'"
-                entries = db.query(Query)
-                print entries
-                if entries<=0:
-                    return ComFnObj.Responser([], "No record updated", "failure")
+                elif user_data.opt == str(2):
+                    Query = "update `" + fieldArr[type][0] + "` set `" + fieldArr[type][2] + "`='" + user_data.title + "' where " +fieldArr[type][1]+" = '" + ComFnObj.Decrypt(str(user_data.id)) + "'"
+                    entries = db.query(Query)
+                    print entries
+                    if entries<=0:
+                        return ComFnObj.Responser([], "No record updated", "failure")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
-                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
             if e[0]==1062:
@@ -1155,12 +1157,17 @@ class classroom:
     def GET(self,classid):
         try:
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)
-            if classid:
-                user_data.opt='single'
-                user_data.value=classid
-            Classrooms = ComFnObj.GetClassrooms(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Classrooms, "Classroom list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                user_data = web.input(opt='list', value=-1)
+                if classid:
+                    user_data.opt='single'
+                    user_data.value=classid
+                Classrooms = ComFnObj.GetClassrooms(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Classrooms, "Classroom list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_CLASSROOM_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
@@ -1168,20 +1175,26 @@ class classroom:
     def POST(self):
 
         try:
-            t = db.transaction()
+
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            BarnID=ComFnObj.Decrypt(user_data.barn)
-            if user_data.opt == str(1):
-                entries = db.insert('tbl_classroom', barn_id_fk=BarnID, \
-                                    classroom_capacity=user_data.capacity)
-            elif user_data.opt == str(2):
-                entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
-                                    classroom_capacity=user_data.capacity,
-                                    where="classroom_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                # user_data = json.loads(json_input)
+                user_data = web.input(opt=1)
+                BarnID=ComFnObj.Decrypt(user_data.barn)
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_classroom', barn_id_fk=BarnID, \
+                                        classroom_capacity=user_data.capacity)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
+                                        classroom_capacity=user_data.capacity,
+                                        where="classroom_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
-                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
 
@@ -1194,39 +1207,51 @@ class classroom:
 class table:
     def GET(self,tableid):
         try:
+
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)#barn,location,vacancy
-            if tableid:
-                user_data.opt='single'
-                user_data.value=tableid
-            Tables = ComFnObj.GetTables(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Tables, "Table list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+
+                user_data = web.input(opt='list', value=-1)#barn,location,vacancy
+                if tableid:
+                    user_data.opt='single'
+                    user_data.value=tableid
+                Tables = ComFnObj.GetTables(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Tables, "Table list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_TABLE_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching table list", "error")
 
     def POST(self,tableid):
         try:
-            t = db.transaction()
+
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            BarnID = ComFnObj.Decrypt(user_data.barn)
-            TableData=ComFnObj.GetTables('numberbarn',[user_data.barn,user_data.number])
-            if len(TableData)==0:
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                # user_data = json.loads(json_input)
+                user_data = web.input(opt=1)
+                BarnID = ComFnObj.Decrypt(user_data.barn)
+                TableData=ComFnObj.GetTables('numberbarn',[user_data.barn,user_data.number])
+                if len(TableData)==0:
 
-                if user_data.opt == str(1):
-                    entries = db.insert('tbl_table', barn_id_fk=BarnID, \
-                                        table_number=user_data.number)
-                elif user_data.opt == str(2):
-                    entries = db.update('tbl_table', barn_id_fk=BarnID, \
-                                        table_number=user_data.number,
-                                        where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    if user_data.opt == str(1):
+                        entries = db.insert('tbl_table', barn_id_fk=BarnID, \
+                                            table_number=user_data.number)
+                    elif user_data.opt == str(2):
+                        entries = db.update('tbl_table', barn_id_fk=BarnID, \
+                                            table_number=user_data.number,
+                                            where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    else:
+                        return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
                 else:
-                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                    return ComFnObj.Responser([], "Same table number exist in the barn", "failure")
             else:
-                return ComFnObj.Responser([], "Same table number exist in the barn", "failure")
-
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
 
@@ -1239,37 +1264,49 @@ class table:
 class chair:
     def GET(self,chairid):
         try:
+
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)#barn,location,vacancy
-            if chairid:
-                user_data.opt='single'
-                user_data.value=chairid
-            Chairs = ComFnObj.GetChairs(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Chairs, "Chair list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+
+                user_data = web.input(opt='list', value=-1)#barn,location,vacancy
+                if chairid:
+                    user_data.opt='single'
+                    user_data.value=chairid
+                Chairs = ComFnObj.GetChairs(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Chairs, "Chair list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_TABLE_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching chair list", "error")
 
     def POST(self,chairid):
         try:
-            t = db.transaction()
+
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            TableID = ComFnObj.Decrypt(user_data.table)
-            ChairData = ComFnObj.GetChairs('numbertable', [user_data.table, user_data.number])
-            if len(ChairData) == 0:
-                if user_data.opt == str(1):
-                    entries = db.insert('tbl_chair', table_id_fk=TableID, \
-                                        chair_number=user_data.number)
-                elif user_data.opt == str(2):
-                    entries = db.update('tbl_chair', table_id_fk=TableID, \
-                                        chair_number=user_data.number,
-                                        where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt=1)
+                TableID = ComFnObj.Decrypt(user_data.table)
+                ChairData = ComFnObj.GetChairs('numbertable', [user_data.table, user_data.number])
+                if len(ChairData) == 0:
+                    if user_data.opt == str(1):
+                        entries = db.insert('tbl_chair', table_id_fk=TableID, \
+                                            chair_number=user_data.number)
+                    elif user_data.opt == str(2):
+                        entries = db.update('tbl_chair', table_id_fk=TableID, \
+                                            chair_number=user_data.number,
+                                            where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    else:
+                        return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
                 else:
-                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                    return ComFnObj.Responser([], "Same chair number exist in the table", "failure")
             else:
-                return ComFnObj.Responser([], "Same chair number exist in the table", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
 
@@ -1282,13 +1319,20 @@ class chair:
 class floor:
     def GET(self,floorid):
         try:
+
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)
-            if floorid:
-                user_data.opt='single'
-                user_data.value=floorid
-            Floors = ComFnObj.GetFloors(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Floors, "Floor list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt='list', value=-1)
+                if floorid:
+                    user_data.opt='single'
+                    user_data.value=floorid
+                Floors = ComFnObj.GetFloors(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Floors, "Floor list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_FLOOR_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching floor list", "error")
@@ -1296,20 +1340,25 @@ class floor:
     def POST(self,floorid):
 
         try:
-            t = db.transaction()
+
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            BarnID=ComFnObj.Decrypt(user_data.barn)
-            if user_data.opt == str(1):
-                entries = db.insert('tbl_floor', floor_id=BarnID, \
-                                    floor_capacity=user_data.capacity)
-            elif user_data.opt == str(2):
-                entries = db.update('tbl_floor', floor_id=BarnID, \
-                                    floor_capacity=user_data.capacity,
-                                    where="floor_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt=1)
+                BarnID=ComFnObj.Decrypt(user_data.barn)
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_floor', floor_id=BarnID, \
+                                        floor_capacity=user_data.capacity)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_floor', floor_id=BarnID, \
+                                        floor_capacity=user_data.capacity,
+                                        where="floor_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
-                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
 
@@ -1322,13 +1371,20 @@ class floor:
 class exhibit:
     def GET(self,exhibitid):
         try:
+
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)
-            if exhibitid:
-                user_data.opt='single'
-                user_data.value=exhibitid
-            Exhibits = ComFnObj.GetExhibits(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Exhibits, "Exhibit list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt='list', value=-1)
+                if exhibitid:
+                    user_data.opt='single'
+                    user_data.value=exhibitid
+                Exhibits = ComFnObj.GetExhibits(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Exhibits, "Exhibit list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_EXHIBIT_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
@@ -1336,20 +1392,25 @@ class exhibit:
     def POST(self,exhibitid):
 
         try:
-            t = db.transaction()
+
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            BarnID=ComFnObj.Decrypt(user_data.barn)
-            if user_data.opt == str(1):
-                entries = db.insert('tbl_exhibit', barn_id_fk=BarnID, \
-                                    exhibit_capacity=user_data.capacity)
-            elif user_data.opt == str(2):
-                entries = db.update('tbl_exhibit', barn_id_fk=BarnID, \
-                                    exhibit_capacity=user_data.capacity,
-                                    where="exhibit_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt=1)
+                BarnID=ComFnObj.Decrypt(user_data.barn)
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_exhibit', barn_id_fk=BarnID, \
+                                        exhibit_capacity=user_data.capacity)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_exhibit', barn_id_fk=BarnID, \
+                                        exhibit_capacity=user_data.capacity,
+                                        where="exhibit_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
-                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
 
@@ -1362,13 +1423,20 @@ class exhibit:
 class organiser:
     def GET(self, organiserid):
         try:
+
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)
-            if organiserid:
-                user_data.opt = 'single'
-                user_data.value = organiserid
-            Organiser = ComFnObj.GetOrganisers(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Organiser, "Organiser list", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+
+                user_data = web.input(opt='list', value=-1)
+                if organiserid:
+                    user_data.opt = 'single'
+                    user_data.value = organiserid
+                Organiser = ComFnObj.GetOrganisers(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Organiser, "Organiser list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_ORGANISER_GET")
 
@@ -1378,23 +1446,27 @@ class organiser:
 
         try:
 
-            t = db.transaction()
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
-            user_data = web.input(opt=1)
-            user_data.type=ComFnObj.Decrypt(user_data.type)
-            print user_data.type
-            if user_data.opt == str(1):
-                entries = db.insert('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
-                                    organiser_description=user_data.description,\
-                                    organiser_image=user_data.image)
-            elif user_data.opt == str(2):
-                entries = db.update('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
-                                    organiser_description=user_data.description,\
-                                    organiser_image=user_data.image,
-                                    where="organiser_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt=1)
+                user_data.type=ComFnObj.Decrypt(user_data.type)
+                print user_data.type
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
+                                        organiser_description=user_data.description,\
+                                        organiser_image=user_data.image)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
+                                        organiser_description=user_data.description,\
+                                        organiser_image=user_data.image,
+                                        where="organiser_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
-                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
             ComFnObj.PrintException("API_ORGANISER_POST")
@@ -1453,12 +1525,19 @@ class feestructure:
 class course:
     def GET(self, courseid):
         try:
+
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)
-            if courseid:
-                user_data.value = courseid
-            Course = ComFnObj.GetCourse(user_data.opt, user_data.value)
-            return ComFnObj.Responser(Course, "Course", "success")
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt='list', value=-1)
+                if courseid:
+                    user_data.value = courseid
+                Course = ComFnObj.GetCourse(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Course, "Course", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_COURSE_GET")
 
@@ -1468,26 +1547,29 @@ class course:
 
         try:
 
-            t = db.transaction()
             ComFnObj = Commonfunctions()
-            # user_data = json.loads(json_input)
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt=1)
+                user_data.feestructure = ComFnObj.Decrypt(str(user_data.feestructure))
+                user_data.coursetype = ComFnObj.Decrypt(str(user_data.coursetype))
+                if user_data.opt == str(1):
 
-            user_data = web.input(opt=1)
-            user_data.feestructure = ComFnObj.Decrypt(str(user_data.feestructure))
-            user_data.coursetype = ComFnObj.Decrypt(str(user_data.coursetype))
-            if user_data.opt == str(1):
-
-                entries = db.insert('tbl_course', course_title=user_data.title,course_desc=user_data.description,
-course_duration=user_data.duration,course_agelimit=user_data.agelimit,
-course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
-coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags)
-            elif user_data.opt == str(2):
-                entries = db.update('tbl_course', course_title=user_data.title,course_desc=user_data.description,
-course_duration=user_data.duration,course_agelimit=user_data.agelimit,
-course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
-coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    entries = db.insert('tbl_course', course_title=user_data.title,course_desc=user_data.description,
+    course_duration=user_data.duration,course_agelimit=user_data.agelimit,
+    course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+    coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_course', course_title=user_data.title,course_desc=user_data.description,
+    course_duration=user_data.duration,course_agelimit=user_data.agelimit,
+    course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+    coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
-                return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
             ComFnObj.PrintException("API_COURSE_POST")
@@ -1496,6 +1578,108 @@ coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_i
                 return ComFnObj.Responser([], "Title already exist", "error")
             else:
                 return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class enroll:
+    def GET(self, courseid):
+        try:
+
+            ComFnObj = Commonfunctions()
+            return ComFnObj.Responser([], "", "blank")
+        except:
+            return ComFnObj.Responser([], "", "blank")
+
+    def POST(self,courseid):
+        ComFnObj = Commonfunctions()
+        try:
+
+            if courseid=="":
+                raise ValueError('Course ID not found')
+            else:
+                courseid2=ComFnObj.Decrypt(courseid)
+                header = web.ctx.environ
+                Authcode = header.get('HTTP_AUTHCODE')
+                if ComFnObj.CheckAuth(Authcode):
+                    t = db.transaction()
+                    user_data = web.input(opt=1)
+                    userid=ComFnObj.GetIdFromAuth(Authcode)
+                    print userid
+                    if user_data.opt == str(1):
+                        if ComFnObj.GetEnrolledCourse("isexist",[ComFnObj.Encrypt(str(userid)),courseid]):
+                            raise ValueError("Already enrolled")
+                        entries = db.insert('tbl_enrolled',user_id_fk=userid,course_id_fk=courseid2,enrolled_status="STATUS")
+                    elif user_data.opt == str(2):
+                        entries = db.update('tbl_enrolled',user_id_fk=userid,course_id_fk=courseid2,enrolled_status=user_data.status,
+                                            where="enrolled_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    else:
+                        return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                else:
+                    return ComFnObj.Responser([], "Authcode failed", "failure")
+        except ValueError as e:
+            ComFnObj.PrintException("API_ENROLLED_POST")
+            return ComFnObj.Responser([], str(e), "error")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_ENROLLED_POST")
+
+            if e[0]==1452:
+                return ComFnObj.Responser([], "Course not in list", "error")
+            else:
+                return ComFnObj.Responser([], str(e), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+class profile:
+    def GET(self,profileid):
+        try:
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                user_data = web.input(opt='list', value=-1)
+                if profileid:
+                    user_data.opt='single'
+                    user_data.value=profileid
+                print profileid
+                Profiles = ComFnObj.GetProfiles(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Profiles, "Profile list", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            ComFnObj.PrintException("API_PROFILE_GET")
+            return ComFnObj.Responser(str(e.message), "Error in fetching profile list", "error")
+
+    def POST(self):
+
+        try:
+
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                # user_data = json.loads(json_input)
+                user_data = web.input(opt=1)
+                BarnID=ComFnObj.Decrypt(user_data.barn)
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_classroom', barn_id_fk=BarnID, \
+                                        classroom_capacity=user_data.capacity)
+                elif user_data.opt == str(2):
+                    entries = db.update('tbl_classroom', barn_id_fk=BarnID, \
+                                        classroom_capacity=user_data.capacity,
+                                        where="classroom_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+
+            ComFnObj.PrintException("API_CLASSROOM_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
