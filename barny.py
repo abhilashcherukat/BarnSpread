@@ -34,6 +34,7 @@ urls = (
     '/course/(.*)', 'course',
     '/enroll/(.*)', 'enroll',
     '/profile/(.*)', 'profile',
+    '/event/(.*)', 'event',
 
 
     '/register', 'register',
@@ -591,7 +592,10 @@ class Commonfunctions:
                             "title":row['eventtype_title'],
                          }
                     JArray.append(JObj);
-            return JArray
+            if OPT == "single":
+                return  JArray[0]
+            else:
+                return JArray
         except Exception as e:
             self.PrintException("FN_GeteventTypes");
             return e
@@ -817,8 +821,8 @@ class Commonfunctions:
 
                     JObj = {"id": EnrollId,
                             "map": self.GetCourseClassMap("single",CourseMapId),
-                            #"date": str(row['enrolled_date']),
-                            #"status":row['enrolled_status']
+                            "date": str(row['enrolled_date']),
+                            "status":row['enrolled_status']
                         }
                     JArray.append(JObj);
             if OPT == "single":
@@ -900,6 +904,58 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetProfiles");
             return e
+
+    def GetEvent(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+        try:
+
+            JArray = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `event_event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
+                        " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` WHERE  event_id='" + str(
+                    ID) + "'"
+            elif OPT == "list":
+                Query = "SELECT `event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
+                        " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event`"
+            elif OPT == "type":
+                ID = self.Decrypt(value)
+                Query = "SELECT `event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`, " \
+                        "`organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` WHERE  `eventtype_id_fk`='" + str(ID) + "'"
+
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+
+                for row in rows:
+                    EventID = self.Encrypt(str(row['event_id']))
+                    FeeStructure = self.GetFeeStructure("single", self.Encrypt(str(row['feestructure_id_fk'])))
+                    EventType = self.GetEventTypes("single", self.Encrypt(str(row['eventtype_id_fk'])))
+                    Organiser = self.GetOrganisers("single", self.Encrypt(str(row['organiser_id_fk'])))
+
+                    JObj = {"id": EventID,
+                            "title": row['event_title'],
+                            "description": row['event_decscription'],
+                            "image": row['event_headerImg'],
+                            "fee": FeeStructure,
+                            "type": EventType,
+                            "status": row['event_status'],
+                            "startdate": str(row['event_start_date']),
+                            "enddate": str(row['event_end_date']),
+                            "organiser":Organiser,
+                            "venue": row['event_venue_id'],
+                            "type": EventType,
+                            "tags": row['event_tags'],
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            else:
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetCourse");
+            return e
+
+
 class checkregistration:
     def GET(self):
 
@@ -1727,6 +1783,70 @@ class profile:
 
             ComFnObj.PrintException("API_CLASSROOM_POST")
             return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+
+
+class event:
+    def GET(self, eventid):
+        try:
+
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt='list', value=-1)
+                if eventid:
+                    user_data.value = eventid
+                Event = ComFnObj.GetEvent(user_data.opt, user_data.value)
+                return ComFnObj.Responser(Event, "Event", "success")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            ComFnObj.PrintException("API_COURSE_GET")
+
+            return ComFnObj.Responser(str(e.message), "Error in  event list", "error")
+
+    def POST(self,courseid):
+
+        try:
+
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                user_data = web.input(opt=1)
+                user_data.feestructure = ComFnObj.Decrypt(str(user_data.feestructure))
+                user_data.eventtype = ComFnObj.Decrypt(str(user_data.eventtype))
+                user_data.barn = ComFnObj.Decrypt(str(user_data.barn))
+                user_data.organiser = ComFnObj.Decrypt(str(user_data.organiser))
+                if user_data.opt == str(1):
+                    entries = db.insert('tbl_event', event_title=user_data.title,event_decscription=user_data.description,
+                    event_headerImg=user_data.image,event_start_date=user_data.start,event_end_date=user_data.end,
+                    event_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+                    eventtype_id_fk=user_data.eventtype,event_venue_id=user_data.barn,event_tags=user_data.tags,organiser_id_fk=user_data.organiser)
+                elif user_data.opt == str(2):
+                    if courseid:
+                        user_data.id = courseid
+                    entries = db.update('tbl_event', event_title=user_data.title,event_decscription=user_data.description,
+                    event_headerImg=user_data.image,event_start_date=user_data.start,event_end_date=user_data.end,
+                    event_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+                    eventtype_id_fk=user_data.eventtype,event_venue_id=user_data.barn,event_tags=user_data.tags,organiser_id_fk=user_data.organiser,where="event_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                else:
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_COURSE_POST")
+
+            if e[0]==1062:
+                return ComFnObj.Responser([], "Title already exist", "error")
+            else:
+                return ComFnObj.Responser([], str(e.message), "error")
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
