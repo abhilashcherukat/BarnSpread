@@ -9,7 +9,7 @@ import sys
 import MySQLdb
 import collections
 import web
-import random
+from random import randint
 import rijndael
 import base64
 
@@ -67,7 +67,7 @@ class test:
 
     def GET(self):
         ComFnObj = Commonfunctions()
-        return ComFnObj.Decrypt("4X0NUZm6VkmgltrVQYqnAUSCuPq6yl4u0r+iP3zXCz8=")
+        return ComFnObj.Decrypt("nHLAnFapfNIc40df6j3YXquYqomLQm3kV7ADN2HPDX4=")
 
 
 
@@ -122,7 +122,6 @@ class Commonfunctions:
         URL = "http://alerts.sinfini.com/api/web2sms.php?workingkey=663040hvmlrbxmd00792&to=" + str(To) + "&sender=GOTHLP&message=" + Msg
         response = urllib.urlopen(URL)
         return response
-    
     def SendMail(self, To, From, Subject, Html,Plain):
         try:
             msg = MIMEMultipart('alternative')
@@ -180,7 +179,6 @@ class Commonfunctions:
         except Exception as e:
             print e
             return "-1"
-
     def Decrypt(self,ciphertext):
         try:
             ciphertext = ciphertext.replace("%2B", "+")
@@ -208,22 +206,30 @@ class Commonfunctions:
             web.header('Access-Control-Allow-Origin', '*')
             web.header('Access-Control-Allow-Methods', '*')
             web.header('Access-Control-Allow-Headers', '*')
+            web.header('Access-Control-Allow-Credentials', 'true')
             web.header('Content-Type', 'application/json')
             return  json.dumps(status)  
         elif status=='success':
-            
             status = {"status": "success", "message": message,"data":response,"statusCode":200}
             web.header('Access-Control-Allow-Origin', '*')
-            web.header('Access-Control-Allow-Methods', '*')
+            web.header('Access-Control-Allow-Methods','*')
             web.header('Access-Control-Allow-Headers', '*')
+            web.header('Access-Control-Allow-Credentials', 'true')
             web.header('Content-Type', 'application/json')
-            return json.dumps(status)  
+            return json.dumps(status)
+        elif status == 'option':
+            web.header('Access-Control-Allow-Origin', '*')
+            web.header('Access-Control-Allow-Methods', '*')
+            web.header('Access-Control-Allow-Headers', 'Authcode')
+            web.header('Access-Control-Allow-Credentials', 'true')
+            web.header('Content-Type', 'application/json')
         elif status=='failure':
             
             status = {"status": "failed", "message": message,"data":response,"statusCode":200}
             web.header('Access-Control-Allow-Origin', '*')
             web.header('Access-Control-Allow-Methods', '*')
             web.header('Access-Control-Allow-Headers', '*')
+            web.header('Access-Control-Allow-Credentials', 'true')
             web.header('Content-Type', 'application/json')
             return  json.dumps(status)  
         else:
@@ -231,6 +237,7 @@ class Commonfunctions:
             web.header('Access-Control-Allow-Origin', '*')
             web.header('Access-Control-Allow-Methods', '*')
             web.header('Access-Control-Allow-Headers', '*')
+            web.header('Access-Control-Allow-Credentials', 'true')
             web.header('Content-Type', 'application/json')
             return  json.dumps(status)  
     
@@ -278,6 +285,7 @@ class Commonfunctions:
         Plain = m.hexdigest()
         k = re.findall(r'\d+', Plain)
         return "".join(k)[:Count]
+
     def GetCategoryFromID(self,CatId):
 
         entries = db.select("doctorcategory",where="ID="+str(CatId))
@@ -287,30 +295,32 @@ class Commonfunctions:
             JArray={"ID":rows[0]['ID'], "Title":rows[0]['Title']}
         return JArray
 
-    def GetBarns(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+    def GetBarns(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
         try:
+            start=int(page) * 5;
+            end=5;
             JArray=[]
+            JRespo=[]
             JAminities=[]
             if OPT == "single":
                 ID=self.Decrypt(value)
-                print ID + ":"+ value
                 Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_id`='"+ID+"'"
             elif OPT=="list":
-                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`"
-           
+                Query="SELECT totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`,(SELECT COUNT(*) totalCount FROM tbl_barn) c limit "+str(start)+","+str(end)
             elif OPT=="location":
-                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_location`='"+str(value)+"'"
+                Query="SELECT totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`,(SELECT COUNT(*) totalCount FROM tbl_barn where `barn_location`='"+str(value)+"') c where `barn_location`='"+str(value)+"' limit "+str(start)+","+str(end)
            
-
-
             entries = db.query(Query)
             rows = entries.list();
             if rows:
-
+                print rows
                 for row in rows:
                     if row['barn_amenities']!="":
                         JAminities=self.GetAminities('closedlist',row['barn_amenities'])
-                    
+                    else:
+                        JAminities = []
+
+
                     JObj={"id":self.Encrypt(str(row['barn_id'])),
                         "location":row['barn_location'],
                         "title":row['barn_title'],
@@ -321,26 +331,34 @@ class Commonfunctions:
                         
                         }
                     JArray.append(JObj);
+            JCount=0
             if OPT=="single":
                 return JArray[0]
             else:
-                return JArray
+                if row['totalCount']:
+                    JCount=row['totalCount']
+                    JRespo.append({"totalrecords":JCount,'data':JArray})
+                return JRespo
         except Exception as e:
             self.PrintException("FN_GetBarns");
             return e
-
-    def GetAminities(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+    def GetAminities(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
         try:
+            start = int(page) * 5;
+            end = 5;
             JArray=[]
+            JRespo=[]
             JResponse=collections.OrderedDict()
             if OPT == "single":
-                Query="SELECT `amenities_id`, `amenities_title` FROM `tbl_amenities` WHERE `amenities_id`="+str(value)
+                Query="SELECT `amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities` WHERE `amenities_id`="+str(value)
             elif OPT=="list":
-                Query="SELECT `amenities_id`, `amenities_title` FROM `tbl_amenities`"
+                Query="SELECT `totalCount`,`amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities`,(SELECT COUNT(*) totalCount FROM tbl_amenities) c limit "+str(start)+","+str(end)
+            elif OPT == "combo":
+                Query = "SELECT `amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities`"
             elif OPT=='closedlist':
                 if value!='':
-                    Query="SELECT `amenities_id`, `amenities_title` FROM `tbl_amenities` where `amenities_id` in ("+str(value)+")"
-                    print Query
+                    Query="SELECT 0 as `totalCount`,`amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities` where `amenities_id` in ("+str(value)+")"
+
                 else:
                     return []
             entries = db.query(Query)
@@ -350,17 +368,21 @@ class Commonfunctions:
                 for row in rows:
                     JObj={"id":self.Encrypt(str(row['amenities_id'])),
                             "title":row['amenities_title'],
+                            "icon":row['amenities_icon'],
                          }
                     JArray.append(JObj);
             if OPT=="single":
                 return JArray[0]
-            else:
+            elif OPT == "closedlist" or OPT=="combo":
                 return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
         except Exception as e:
             self.PrintException("FN_GetAminities");
             return e
-
-    def GetClassrooms(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetClassrooms(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             JAminities = []
@@ -395,8 +417,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetClassroom");
             return e
-
-    def GetTables(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetTables(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             JAminities = []
@@ -438,8 +459,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetTable");
             return e
-
-    def GetChairs(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetChairs(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             JAminities = []
@@ -482,8 +502,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetChair");
             return e
-
-    def GetFloors(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetFloors(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             JAminities = []
@@ -513,8 +532,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetFloor");
             return e
-
-    def GetExhibits(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetExhibits(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             JAminities = []
@@ -549,19 +567,21 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetExhibit");
             return e
-
-    def GetBookingTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+    def GetBookingTypes(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
         try:
+            start = int(page) * 5;
+            end = 5;
             JArray=[]
-            value=self.Decrypt(str(value))
             JResponse=collections.OrderedDict()
             if OPT == "single":
-                Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` WHERE `bookingtype_id`="+str(value)
+                value = self.Decrypt(str(value))
+                Query="SELECT 0 as totalCount,`bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` WHERE `bookingtype_id`="+str(value)
             elif OPT=="list":
-                Query="SELECT `bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype`"
-
+                Query="SELECT totalCount,`bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype`,(SELECT COUNT(*) totalCount FROM tbl_bookingtype) c limit "+str(start)+","+str(end)
+            print Query
             entries = db.query(Query)
             rows = entries.list();
+            JRespo=[]
             if rows:
 
                 for row in rows:
@@ -569,101 +589,140 @@ class Commonfunctions:
                             "title":row['bookingtype_title'],
                          }
                     JArray.append(JObj);
-            return JArray
+            if OPT=="single":
+                return JArray[0]
+            elif OPT == "closedlist" or OPT=="combo":
+                return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
         except Exception as e:
-            self.PrintException("FN_GetBookingTypes");
+            self.PrintException("FN_GetBooking");
             return e
-    def GetEventTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
-        try:
-            JArray=[]
-            value = self.Decrypt(str(value))
-            JResponse=collections.OrderedDict()
-            if OPT == "single":
-                Query="SELECT `eventtype_id`, `eventtype_title` FROM `tbl_eventtype` WHERE `eventtype_id`="+str(value)
-            elif OPT=="list":
-                Query="SELECT `eventtype_id`, `eventtype_title` FROM `tbl_eventtype`"
 
+    def GetEventTypes(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
+        try:
+            start = int(page) * 5;
+            end = 5;
+            JArray = []
+            JResponse = collections.OrderedDict()
+            if OPT == "single":
+                value = self.Decrypt(str(value))
+                Query = "SELECT 0 as totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype` WHERE `eventtype_id`=" + str(
+                    value)
+            elif OPT == "list":
+                Query = "SELECT totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype`,(SELECT COUNT(*) totalCount FROM tbl_eventtype) c limit " + str(
+                    start) + "," + str(end)
+            print Query
             entries = db.query(Query)
             rows = entries.list();
+            JRespo = []
             if rows:
 
                 for row in rows:
-                    JObj={"id":self.Encrypt(str(row['eventtype_id'])),
-                            "title":row['eventtype_title'],
-                         }
+                    JObj = {"id": self.Encrypt(str(row['eventtype_id'])),
+                            "title": row['eventtype_title'],
+                            }
                     JArray.append(JObj);
             if OPT == "single":
-                return  JArray[0]
-            else:
+                return JArray[0]
+            elif OPT == "closedlist" or OPT == "combo":
                 return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
         except Exception as e:
             self.PrintException("FN_GeteventTypes");
             return e
-    def GetOrganiserTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
+    def GetOrganiserTypes(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
         try:
-            JArray=[]
-            JResponse=collections.OrderedDict()
-            value = self.Decrypt(str(value))
-            if OPT == "single":
-                Query="SELECT `organisertype_id`, `organisertype_title` FROM `tbl_organisertype` WHERE `organisertype_id`="+str(value)
-            elif OPT=="list":
-                Query="SELECT `organisertype_id`, `organisertype_title` FROM `tbl_organisertype`"
-
-            entries = db.query(Query)
-            rows = entries.list();
-            if rows:
-
-                for row in rows:
-                    JObj={"id":self.Encrypt(str(row['organisertype_id'])),
-                            "title":row['organisertype_title'],
-                         }
-                    JArray.append(JObj);
-            if OPT == "single":
-                return JArray[0]
-            else:
-                return JArray
-        except Exception as e:
-            self.PrintException("FN_GetOrganiserTypes");
-            return e
-    def GetCourseTypes(self, OPT='list', value=-1, datatype="S"): #S is single A is array
-        try:
-            JArray=[]
-            JResponse=collections.OrderedDict()
-            value = self.Decrypt(str(value))
-            if OPT == "single":
-                Query="SELECT `coursetype_id`, `coursetype_title` FROM `tbl_coursetype` WHERE `coursetype_id`="+str(value)
-            elif OPT=="list":
-                Query="SELECT `coursetype_id`, `coursetype_title` FROM `tbl_coursetype`"
-
-            entries = db.query(Query)
-            rows = entries.list();
-            if rows:
-
-                for row in rows:
-                    JObj={"id":self.Encrypt(str(row['coursetype_id'])),
-                            "title":row['coursetype_title'],
-                         }
-                    JArray.append(JObj);
-            if OPT == "single":
-                return JArray[0]
-            else:
-                return JArray
-        except Exception as e:
-            self.PrintException("FN_GetOrganiserTypes");
-            return e
-    def GetTags(self, OPT='list', value=-1, datatype="S"): #S is single A is array
-        try:
-            JArray=[]
-            JResponse=collections.OrderedDict()
-
+            start = int(page) * 5;
+            end = 5;
+            JArray = []
+            JResponse = collections.OrderedDict()
             if OPT == "single":
                 value = self.Decrypt(str(value))
-                Query="SELECT `tag_id`, `tag_title` FROM `tbl_tags` WHERE `tag_id`="+str(value)
-            elif OPT=="list":
-                Query="SELECT `tag_id`, `tag_title` FROM `tbl_tags`"
+                Query = "SELECT 0 as totalCount,`organisertype_id`, `organisertype_title` FROM `tbl_organisertype` WHERE `organisertype_id`=" + str(
+                    value)
+            elif OPT == "list":
+                Query = "SELECT totalCount,`organisertype_id`, `organisertype_title` FROM `tbl_organisertype`,(SELECT COUNT(*) totalCount FROM tbl_organisertype) c limit " + str(
+                    start) + "," + str(end)
 
             entries = db.query(Query)
             rows = entries.list();
+            JRespo = []
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['organisertype_id'])),
+                            "title": row['organisertype_title'],
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            elif OPT == "closedlist" or OPT == "combo":
+                return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
+        except Exception as e:
+            self.PrintException("FN_GetOrganiserTypes");
+            return e
+    def GetCourseTypes(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
+        try:
+            start = int(page) * 5;
+            end = 5;
+            JArray = []
+            JResponse = collections.OrderedDict()
+            if OPT == "single":
+                value = self.Decrypt(str(value))
+                Query = "SELECT 0 as totalCount,`coursetype_id`, `coursetype_title` FROM `tbl_coursetype` WHERE `coursetype_id`=" + str(
+                    value)
+            elif OPT == "list":
+                Query = "SELECT totalCount,`coursetype_id`, `coursetype_title` FROM `tbl_coursetype`,(SELECT COUNT(*) totalCount FROM tbl_coursetype) c limit " + str(start) + "," + str(end)
+
+            entries = db.query(Query)
+            rows = entries.list();
+            JRespo = []
+            if rows:
+
+                for row in rows:
+                    JObj = {"id": self.Encrypt(str(row['coursetype_id'])),
+                            "title": row['coursetype_title'],
+                            }
+                    JArray.append(JObj);
+            if OPT == "single":
+                return JArray[0]
+            elif OPT == "closedlist" or OPT == "combo":
+                return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
+        except Exception as e:
+            self.PrintException("FN_GetOrganiserTypes");
+            return e
+    def GetTags(self, OPT='list', value=-1,page=1, datatype="S"): #S is single A is array
+        try:
+            start = int(page) * 5;
+            end = 5;
+            JArray=[]
+            JResponse=collections.OrderedDict()
+            if OPT == "single":
+                value = self.Decrypt(str(value))
+                Query="SELECT 0 as totalCount,`tag_id`, `tag_title` FROM `tbl_tags` WHERE `tag_id`="+str(value)
+            elif OPT=="list":
+                Query="SELECT totalCount,`tag_id`, `tag_title` FROM `tbl_tags`,(SELECT COUNT(*) totalCount FROM tbl_tags) c limit "+str(start)+","+str(end)
+            print Query
+            entries = db.query(Query)
+            rows = entries.list();
+            JRespo=[]
             if rows:
 
                 for row in rows:
@@ -671,12 +730,18 @@ class Commonfunctions:
                             "title":row['tag_title'],
                          }
                     JArray.append(JObj);
-            return JArray
+            if OPT=="single":
+                return JArray[0]
+            elif OPT == "closedlist" or OPT=="combo":
+                return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
         except Exception as e:
             self.PrintException("FN_GetTags");
             return e
-
-    def GetOrganisers(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetOrganisers(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             if OPT == "single":
@@ -710,8 +775,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetOrganiser");
             return e
-
-    def GetFeeStructure(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetFeeStructure(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         #print str(value)+" "+OPT
         try:
             JArray = []
@@ -744,8 +808,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetFeeStructure");
             return e
-
-    def GetCourse(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetCourse(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
 
             JArray = []
@@ -790,7 +853,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetCourse");
             return e
-    def GetEnrolledCourse(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetEnrolledCourse(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
 
             JArray = []
@@ -832,7 +895,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetEnrollCourse");
             return e
-    def GetProfiles(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetProfiles(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             if OPT == "single":
@@ -867,7 +930,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetProfiles");
             return e
-    def GetCourseClassMap(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetCourseClassMap(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
             JArray = []
             if OPT == "single":
@@ -904,8 +967,7 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetProfiles");
             return e
-
-    def GetEvent(self, OPT='list', value=-1, datatype="S"):  # S is single A is array
+    def GetEvent(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
 
             JArray = []
@@ -954,7 +1016,53 @@ class Commonfunctions:
         except Exception as e:
             self.PrintException("FN_GetCourse");
             return e
+    def QueryMaker(self,type,data):
+        print data
+        fieldArr = {
+            "booking": ["tbl_bookingtype", "bookingtype_id", "bookingtype_title"],
+            "amenities": ["tbl_amenities", "amenities_id", "amenities_title","amenities_icon"],
+            "tags": ["tbl_tags", "tag_id", "tag_title"],
+            "organiser": ["tbl_organisertype", "organisertype_id", "organisertype_title"],
+            "event": ["tbl_eventtype", "eventtype_id", "eventtype_title"],
+            "course": ["tbl_coursetype", "coursetype_id", "coursetype_title"]
+            }
 
+        IStr="insert into "+str(fieldArr[type][0]);
+        UStr="update "+str(fieldArr[type][0])+" set ";
+        if type=='amenities':
+
+            Files = json.loads(data.icon)
+            print Files
+            NewFileName=Files['name']
+            if NewFileName!="":
+                Salt = "$343dddSS"
+                Rnd = randint(2, 90000)
+                String = NewFileName + str(Rnd) + Salt
+                m = hashlib.md5()
+                m.update(String)
+                Random = m.hexdigest()
+                NewFileName = str(Random) + "_" + NewFileName
+                filecontent = str(Files['content'])
+                decoded_string = base64.b64decode(filecontent)
+                print filecontent
+                with open('/var/www/html/BarnPort/images/amenities/' + NewFileName, "wb") as fout:
+                    fout.write(decoded_string)
+
+            IStr=IStr+" (amenities_title,amenities_icon)values('"+str(data.title)+"','"+str(NewFileName)+"')"
+            if NewFileName=="":
+                UStr =UStr+" amenities_title='" + str(data.title) + "' where amenities_id=" + str(self.Decrypt(data.id))
+            else:
+                UStr =UStr+" amenities_title='" + str(data.title) + "',amenities_icon='" + str(NewFileName) + "' where amenities_id=" + str(self.Decrypt(data.id))
+        else:
+
+            IStr = IStr + " (`"+fieldArr[type][2] +"`) values('" + str(data.title) + "')"
+            UStr = UStr +" `"+fieldArr[type][2]+"`='" + str(data.title) + "' where `"+fieldArr[type][1]+"`=" + str(self.Decrypt(data.id))
+
+
+        if data.opt==str(2):
+            return UStr
+        else:
+            return IStr
 
 class checkregistration:
     def GET(self):
@@ -985,8 +1093,6 @@ class checkregistration:
 
         except Exception as e:
             return ComFnObj.Responser({}, "Some error happened:"+str(e), "error")
-
-
 class verify:
     def GET(self):
         status = {"status": "Info", "message": "This page is intentionally left blank.","statusCode":200}
@@ -1113,48 +1219,67 @@ class login:
         except Exception as e:
             ComFnObj.PrintException("API_LOGIN_GET")
             return ComFnObj.Responser(str(e.message), "Error in login", "error")
-
-
 class barn:
+    def OPTIONS(self,X):
+        ComFnObj = Commonfunctions()
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,barnid):
         try:
             ComFnObj = Commonfunctions()
             header = web.ctx.environ
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
-                user_data = web.input(opt='list',value=-1)
+                user_data = web.input(opt='list',value=-1,page=1)
+                user_data.page = int(user_data.page) -1
                 if barnid:
                     user_data.opt='single'
                     user_data.value=barnid
-                Barns=ComFnObj.GetBarns(user_data.opt,user_data.value)
+                Barns=ComFnObj.GetBarns(user_data.opt,user_data.value,user_data.page)
                 return ComFnObj.Responser(Barns,"Barn list","success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             ComFnObj.PrintException("API_BARN_GET")
             return ComFnObj.Responser(str(e.message),"Error in fetching Barn list","error")
-    def POST(self):
+    def POST(self,barnid=-1):
 
         try:
 
             ComFnObj = Commonfunctions()
             header = web.ctx.environ
             Authcode = header.get('HTTP_AUTHCODE')
+
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
                 # user_data = json.loads(json_input)
                 user_data = web.input(opt=1)
-
+                print user_data
                 if  user_data.opt==str(1):
+                    user_data.amenities = json.loads(user_data.amenities)
+                    amen=[]
+                    for amenitits in user_data.amenities:
+                        amen.append(ComFnObj.Decrypt(amenitits))
                     entries = db.insert('tbl_barn', barn_title=user_data.title, \
                                         barn_location=user_data.location,barn_poc=user_data.poc, \
                                         barn_phone=user_data.phone, barn_address=user_data.address, \
-                                       barn_amenities=user_data.amenities)
+                                       barn_amenities=','.join(amen))
                 elif user_data.opt==str(2):
+                    amen = []
+                    user_data.amenities = json.loads(user_data.amenities)
+                    print user_data.amenities
+                    if user_data.amenities != None:
+                        for amenitits in user_data.amenities:
+                            print amenitits
+                            amen.append(ComFnObj.Decrypt(amenitits))
                     entries = db.update('tbl_barn', barn_title=user_data.title, \
                                         barn_location=user_data.location,barn_poc=user_data.poc, \
                                         barn_phone=user_data.phone, barn_address=user_data.address, \
-                                       barn_amenities=user_data.amenities, where="barn_id='"+ComFnObj.Decrypt(str(user_data.id))+"'")
+                                       barn_amenities=','.join(amen), where="barn_id='"+ComFnObj.Decrypt(str(barnid))+"'")
                 else:
                     return ComFnObj.Responser([],"opt must be 1 or 2","failure")
             else:
@@ -1166,29 +1291,54 @@ class barn:
         else:
             t.commit()
             return ComFnObj.Responser([],"Operation success","success")
-
-
 class commonlist:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self, type):
         try:
             Jlist=[]
             ComFnObj = Commonfunctions()
+            user_data = web.input(id=-1, page=1,opt='list')
             header = web.ctx.environ
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
-                user_data = web.input()
+
+                user_data.page = int(user_data.page) -1
                 if type == "amenities":
-                    Jlist = ComFnObj.GetAminities()
+                    if user_data.id!=-1:
+                        Jlist = ComFnObj.GetAminities("single",ComFnObj.Decrypt(user_data.id))
+                    else:
+                        Jlist = ComFnObj.GetAminities(user_data.opt,-1,user_data.page)
                 elif type == "booking":
-                    Jlist = ComFnObj.GetBookingTypes()
+                    if user_data.id!=-1:
+                        Jlist = ComFnObj.GetBookingTypes("single",user_data.id)
+                    else:
+                        Jlist = ComFnObj.GetBookingTypes(user_data.opt,-1,user_data.page)
                 elif type == "tags":
-                    Jlist = ComFnObj.GetTags()
+                    if user_data.id!=-1:
+                        Jlist = ComFnObj.GetTags("single",user_data.id)
+                    else:
+                        Jlist = ComFnObj.GetTags(user_data.opt,-1,user_data.page)
                 elif type == "event":
-                    Jlist = ComFnObj.GetEventTypes()
+                    if user_data.id!=-1:
+                        Jlist = ComFnObj.GetEventTypes("single",user_data.id)
+                    else:
+                        Jlist = ComFnObj.GetEventTypes(user_data.opt,-1,user_data.page)
                 elif type == "organiser":
-                    Jlist = ComFnObj.GetOrganiserTypes()
+                    if user_data.id!=-1:
+                        Jlist = ComFnObj.GetOrganiserTypes("single",user_data.id)
+                    else:
+                        Jlist = ComFnObj.GetOrganiserTypes(user_data.opt,-1,user_data.page)
                 elif type == "course":
-                    Jlist = ComFnObj.GetCourseTypes()
+                    if user_data.id!=-1:
+                        Jlist = ComFnObj.GetCourseTypes("single",user_data.id)
+                    else:
+                        Jlist = ComFnObj.GetCourseTypes(user_data.opt,-1,user_data.page)
                 return ComFnObj.Responser(Jlist, type+" list", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
@@ -1199,39 +1349,23 @@ class commonlist:
     def POST(self, type):
 
         try:
-
-
             ComFnObj = Commonfunctions()
             header = web.ctx.environ
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-            # user_data = json.loads(json_input)
-                user_data = web.input(opt=1)
-                fieldArr={
-                    "booking":["tbl_bookingtype","bookingtype_id", "bookingtype_title"],
-                    "amenities": ["tbl_amenities","amenities_id", "amenities_title"],
-                    "tags": ["tbl_tags","tag_id", "tag_title"],
-                    "organiser": ["tbl_organisertype","organisertype_id", "organisertype_title"],
-                    "event": ["tbl_eventtype","eventtype_id", "eventtype_title"],
-                    "course": ["tbl_coursetype","coursetype_id", "coursetype_title"]
-
-
-                }
+                user_data = web.input(opt=1,_unicode=False)
+                Query = ComFnObj.QueryMaker(type, user_data)
 
                 if user_data.opt == str(1):
-                    Query="insert into `"+fieldArr[type][0]+"` (`"+fieldArr[type][2]+"`) values('"+user_data.title+"')"
-                    entries = db.query(Query)
-                    #entries = db.insert(fieldArr[type][0], fieldArr[type][2]=user_data.title)
+                  print Query
 
                 elif user_data.opt == str(2):
-                    Query = "update `" + fieldArr[type][0] + "` set `" + fieldArr[type][2] + "`='" + user_data.title + "' where " +fieldArr[type][1]+" = '" + ComFnObj.Decrypt(str(user_data.id)) + "'"
-                    entries = db.query(Query)
-                    print entries
-                    if entries<=0:
-                        return ComFnObj.Responser([], "No record updated", "failure")
+                    print Query
                 else:
                     return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+
+                entries=db.query(Query)
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
@@ -1239,7 +1373,7 @@ class commonlist:
             if e[0]==1062:
                 message="Title already exist"
             else:
-                message=str(e.message)
+                message=str(e)
             ComFnObj.PrintException("API_COMMONLISTING_POST")
             return ComFnObj.Responser([], message, "error")
 
@@ -1248,6 +1382,13 @@ class commonlist:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class classroom:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,classid):
         try:
             ComFnObj = Commonfunctions()
@@ -1299,6 +1440,13 @@ class classroom:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class table:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,tableid):
         try:
 
@@ -1356,6 +1504,13 @@ class table:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class chair:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,chairid):
         try:
 
@@ -1411,6 +1566,13 @@ class chair:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class floor:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,floorid):
         try:
 
@@ -1463,6 +1625,13 @@ class floor:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class exhibit:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,exhibitid):
         try:
 
@@ -1515,6 +1684,13 @@ class exhibit:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class organiser:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self, organiserid):
         try:
 
@@ -1574,6 +1750,13 @@ class organiser:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class feestructure:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self, feestructureid):
         try:
             ComFnObj = Commonfunctions()
@@ -1617,6 +1800,13 @@ class feestructure:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class course:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self, courseid):
         try:
 
@@ -1683,6 +1873,13 @@ class course:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class enroll:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self, courseid):
         try:
             ComFnObj = Commonfunctions()
@@ -1735,6 +1932,13 @@ class enroll:
             return ComFnObj.Responser([], "Operation success", "success")
 
 class profile:
+    def OPTIONS(self,X):
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self,profileid):
         try:
             ComFnObj = Commonfunctions()
@@ -1789,6 +1993,14 @@ class profile:
 
 
 class event:
+    def OPTIONS(self,X):
+        ComFnObj = Commonfunctions()
+        web.header('Access-Control-Allow-Origin', '*')
+        web.header('Access-Control-Allow-Methods', '*')
+        web.header('Access-Control-Allow-Headers', 'Authcode')
+        web.header('Access-Control-Allow-Credentials', 'true')
+        web.header('Content-Type', 'application/json')
+        return ""
     def GET(self, eventid):
         try:
 
