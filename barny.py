@@ -1,7 +1,7 @@
 import hashlib
 import json
 import smtplib
-from datetime import datetime
+import datetime
 import urllib
 import re
 import linecache
@@ -66,9 +66,16 @@ class test:
       return 1
 
     def GET(self):
-        ComFnObj = Commonfunctions()
-        return ComFnObj.Decrypt("nHLAnFapfNIc40df6j3YXquYqomLQm3kV7ADN2HPDX4=")
+        now = datetime.datetime.now()
+        Snows = datetime.datetime.strptime(str("2018-01-01"), '%Y-%m-%d').date()
+        Enows = datetime.datetime.strptime(str("2018-01-23"), '%Y-%m-%d').date()
+        Cnows=now.date()
+        if Snows <= Cnows and  Cnows<= Enows:
+            X = "OCC"+str(Snows >= Cnows)
+        else:
+            X = "VCC"+str(Cnows<= Enows)
 
+        return X
 
 
 #FOR REUSABLE FUNCTIONS
@@ -108,7 +115,7 @@ class Commonfunctions:
             lineno = tb.tb_lineno
             filename = f.f_code.co_filename
             linecache.checkcache(filename)
-            print exc_obj
+            #print exc_obj
             line = linecache.getline(filename, lineno, f.f_globals)
             linepart=line.strip()
             #linePart="".join(linePart)
@@ -177,7 +184,7 @@ class Commonfunctions:
             encoded=encoded.replace("+","%2B")
             return encoded
         except Exception as e:
-            print e
+            #print e
             return "-1"
     def Decrypt(self,ciphertext):
         try:
@@ -313,7 +320,7 @@ class Commonfunctions:
             entries = db.query(Query)
             rows = entries.list();
             if rows:
-                print rows
+                #print rows
                 for row in rows:
                     if row['barn_amenities']!="":
                         JAminities=self.GetAminities('closedlist',row['barn_amenities'])
@@ -419,24 +426,25 @@ class Commonfunctions:
             return e
     def GetTables(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
+            start = int(page) * 5;
+            end = 5;
             JArray = []
             JAminities = []
+            JRespo=[]
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_id`='" + ID + "'"
+                Query = "SELECT 0 as `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_id`='" + ID + "'"
             elif OPT == "list":
-                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table` "
+                Query = "SELECT `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`,(SELECT COUNT(*) totalCount FROM tbl_table) c limit "+str(start)+","+str(end)
             elif OPT == "barn":
                 ID = self.Decrypt(value)
-                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `barn_id_fk`='" + str(
-                    ID) + "'"
+                Query = "SELECT  0 as `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `barn_id_fk`='" + str(ID) + "'"
             elif OPT == "number":
-                 Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(value) + "'"
+                 Query = "SELECT 0 as `totalCount`, `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(value) + "'"
             elif OPT == "numberbarn": #Table number in barn
                 BarnID = self.Decrypt(value[0])
                 TableNumber =value[1]
-                Query = "SELECT `table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(
-                    TableNumber) + "' and barn_id_fk='"+str(BarnID)+"'"
+                Query = "SELECT  0 as `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(TableNumber) + "' and barn_id_fk='"+str(BarnID)+"'"
 
             #elif OPT == "capacity":
             #    Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
@@ -449,13 +457,18 @@ class Commonfunctions:
                 for row in rows:
                     JObj = {"id": self.Encrypt(str(row['table_id'])),
                             "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
-                            "number": row['table_number']
+                            "number": row['table_number'],
+                            "chair":self.GetChairs('table',self.Encrypt(str(row['table_id']))),
                             }
                     JArray.append(JObj);
             if OPT=="single":
                 return JArray[0]
-            else:
+            elif OPT == "closedlist" or OPT=="combo":
                 return JArray
+            else:
+                JCount = row['totalCount']
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
         except Exception as e:
             self.PrintException("FN_GetTable");
             return e
@@ -463,24 +476,21 @@ class Commonfunctions:
         try:
             JArray = []
             JAminities = []
+            JRespo=[]
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_id`='" + ID + "'"
+                Query = "SELECT 0 as totalCount,`chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_id`='" + ID + "'"
             elif OPT == "list":
-                Query = "SELECT `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair` "
+                Query = "SELECT totalCount,`chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`,(SELECT COUNT(*) totalCount FROM tbl_chair) c"
             elif OPT == "table":
                 ID = self.Decrypt(value)
-                Query = "SELECT `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `table_id_fk`='" + str(
-                    ID) + "'"
+                Query = "SELECT   totalCount,`chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`,(SELECT COUNT(*) totalCount FROM tbl_chair where `table_id_fk`='" + str(ID) + "') c   where `table_id_fk`='" + str(ID) + "'"
             elif OPT == "number":
-                ID = self.Decrypt(value)
-                Query = "SELECT  `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_number`='" + str(
-                    value) + "'"
+                Query = "SELECT   0 as totalCount,`chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_number`='" + str(value) + "'"
             elif OPT == "numbertable": #Table number in barn
                 TableID = self.Decrypt(value[0])
                 ChairNumber =value[1]
-                Query = "SELECT  `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_number`='" + str(
-                    ChairNumber) + "' and table_id_fk='"+str(TableID)+"'"
+                Query = "SELECT  0 as totalCount, `chair_id`, `chair_number`, `table_id_fk` FROM `tbl_chair`  where `chair_number`='" + str(ChairNumber) + "' and table_id_fk='"+str(TableID)+"'"
             #elif OPT == "capacity":
             #    Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
             #        value) + "'"
@@ -491,16 +501,56 @@ class Commonfunctions:
 
                 for row in rows:
                     JObj = {"id": self.Encrypt(str(row['chair_id'])),
-                            "table": self.GetTables('single',self.Encrypt(str(row['table_id_fk']))),
-                            "number": row['chair_number']
+                            #"table": self.GetTables('single',self.Encrypt(str(row['table_id_fk']))),
+                            "number": row['chair_number'],
+                            "bookinghistory":self.GetChairBookingHistory('single',self.Encrypt(str(row['chair_id'])))
                             }
                     JArray.append(JObj);
-            if OPT=="single":
-                return JArray[0]
+
+                if OPT == "single":
+                    return JArray[0]
+                else:
+                    JCount = row['totalCount']
+                    JRespo.append({"totalrecords": JCount, 'data': JArray})
+                    return JRespo
             else:
-                return JArray
+                JRespo.append({"totalrecords": 0, 'data': []})
+                return JRespo
         except Exception as e:
             self.PrintException("FN_GetChair");
+            return e
+    def GetChairBookingHistory(self, OPT='list', value=-1):
+        try:
+            JArray = []
+            JAminities = []
+            if OPT == "single":
+                ID = self.Decrypt(value)
+                Query = "SELECT `chairbooking_id`, `chair_id_fk`, DATE(`chairbooking_start_dt`)as start, DATE(`chairbooking_end_dt`)as end FROM `tbl_chairbooking` WHERE `chair_id_fk`='" + str(ID) + "' order by chairbooking_end_dt desc"
+            elif OPT == "list":
+                ID = self.Decrypt(value)
+                Query = "SELECT `chairbooking_id`, `chair_id_fk`, DATE(`chairbooking_start_dt`)as start, DATE(`chairbooking_end_dt`)as end FROM `tbl_chairbooking` WHERE `chairbooking_id`='" + str(ID) + "'  order by chairbooking_end_dt desc"
+            entries = db.query(Query)
+            rows = entries.list();
+            now = datetime.datetime.now()
+            if rows:
+
+                for row in rows:
+                    #Snows = datetime.datetime.strptime(str(row['start']), '%Y-%m-%d').date()
+                    #Enows = datetime.datetime.strptime(str(row['end']), '%Y-%m-%d').date()
+                    #if Snows<=now.date() and now.date()<=Enows:
+                    #    X="OCC"
+                    #else:
+                    #    X="VCC"
+                    JObj = {"id": self.Encrypt(str(row['chairbooking_id'])),
+                            "start": str(row['start']),
+                            "end": str(row['end']),
+                            "chairid": self.Encrypt(str(row['chair_id_fk'])),
+                           }
+                    JArray.append(JObj);
+
+                return JArray
+        except Exception as e:
+            self.PrintException("FN_GetChairBookingHistory");
             return e
     def GetFloors(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
@@ -578,7 +628,7 @@ class Commonfunctions:
                 Query="SELECT 0 as totalCount,`bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype` WHERE `bookingtype_id`="+str(value)
             elif OPT=="list":
                 Query="SELECT totalCount,`bookingtype_id`, `bookingtype_title` FROM `tbl_bookingtype`,(SELECT COUNT(*) totalCount FROM tbl_bookingtype) c limit "+str(start)+","+str(end)
-            print Query
+            #print Query
             entries = db.query(Query)
             rows = entries.list();
             JRespo=[]
@@ -614,7 +664,7 @@ class Commonfunctions:
             elif OPT == "list":
                 Query = "SELECT totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype`,(SELECT COUNT(*) totalCount FROM tbl_eventtype) c limit " + str(
                     start) + "," + str(end)
-            print Query
+            #print Query
             entries = db.query(Query)
             rows = entries.list();
             JRespo = []
@@ -719,7 +769,7 @@ class Commonfunctions:
                 Query="SELECT 0 as totalCount,`tag_id`, `tag_title` FROM `tbl_tags` WHERE `tag_id`="+str(value)
             elif OPT=="list":
                 Query="SELECT totalCount,`tag_id`, `tag_title` FROM `tbl_tags`,(SELECT COUNT(*) totalCount FROM tbl_tags) c limit "+str(start)+","+str(end)
-            print Query
+           # print Query
             entries = db.query(Query)
             rows = entries.list();
             JRespo=[]
@@ -866,7 +916,7 @@ class Commonfunctions:
                 ID = self.Decrypt(value)
                 Query = "SELECT `enrolled_id`, `user_id_fk`, `coursemap_id_fk`, `enrolled_date`, `enrolled_status` FROM `tbl_enrolled` where `user_id_fk`='" + str(ID) + "'"
             elif OPT=="isexist":
-                print value
+                #print value
                 userId = self.Decrypt(value[0])
                 courseId = self.Decrypt(value[1])
 
@@ -950,7 +1000,7 @@ class Commonfunctions:
                     return self.Encrypt(str(rows[0]['map_id']))
                 for row in rows:
                     CourseId = self.Encrypt(str(row['course_id_fk']))
-                    print row['course_id_fk']
+                    #print row['course_id_fk']
                     BarnId = self.Encrypt(str(row['barn_id_fk']))
                     MapId = self.Encrypt(str(row['map_id']))
 
@@ -1017,7 +1067,7 @@ class Commonfunctions:
             self.PrintException("FN_GetCourse");
             return e
     def QueryMaker(self,type,data):
-        print data
+        #print data
         fieldArr = {
             "booking": ["tbl_bookingtype", "bookingtype_id", "bookingtype_title"],
             "amenities": ["tbl_amenities", "amenities_id", "amenities_title","amenities_icon"],
@@ -1032,7 +1082,7 @@ class Commonfunctions:
         if type=='amenities':
 
             Files = json.loads(data.icon)
-            print Files
+            #print Files
             NewFileName=Files['name']
             if NewFileName!="":
                 Salt = "$343dddSS"
@@ -1044,7 +1094,7 @@ class Commonfunctions:
                 NewFileName = str(Random) + "_" + NewFileName
                 filecontent = str(Files['content'])
                 decoded_string = base64.b64decode(filecontent)
-                print filecontent
+                #print filecontent
                 with open('/var/www/html/BarnPort/images/amenities/' + NewFileName, "wb") as fout:
                     fout.write(decoded_string)
 
@@ -1074,7 +1124,7 @@ class checkregistration:
     def POST(self):
         ComFnObj = Commonfunctions()
         data = web.input(Phone='')
-        print data
+        #print data
         JResponse=collections.OrderedDict()
         try:
             k = "Phone='" + data.phone + "'"
@@ -1258,7 +1308,7 @@ class barn:
                 t = db.transaction()
                 # user_data = json.loads(json_input)
                 user_data = web.input(opt=1)
-                print user_data
+                #print user_data
                 if  user_data.opt==str(1):
                     user_data.amenities = json.loads(user_data.amenities)
                     amen=[]
@@ -1271,10 +1321,10 @@ class barn:
                 elif user_data.opt==str(2):
                     amen = []
                     user_data.amenities = json.loads(user_data.amenities)
-                    print user_data.amenities
+                    #print user_data.amenities
                     if user_data.amenities != None:
                         for amenitits in user_data.amenities:
-                            print amenitits
+                            #print amenitits
                             amen.append(ComFnObj.Decrypt(amenitits))
                     entries = db.update('tbl_barn', barn_title=user_data.title, \
                                         barn_location=user_data.location,barn_poc=user_data.poc, \
@@ -1357,14 +1407,8 @@ class commonlist:
                 user_data = web.input(opt=1,_unicode=False)
                 Query = ComFnObj.QueryMaker(type, user_data)
 
-                if user_data.opt == str(1):
-                  print Query
-
-                elif user_data.opt == str(2):
-                    print Query
-                else:
-                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
-
+                if user_data.opt != str(1) or  user_data.opt != str(2):
+                   return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
                 entries=db.query(Query)
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
@@ -1455,11 +1499,13 @@ class table:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
 
-                user_data = web.input(opt='list', value=-1)#barn,location,vacancy
+                user_data = web.input( page=1,opt='list', value=-1)#barn,location,vacancy
+                user_data.page = int(user_data.page) - 1
                 if tableid:
                     user_data.opt='single'
                     user_data.value=tableid
-                Tables = ComFnObj.GetTables(user_data.opt, user_data.value)
+                Tables = ComFnObj.GetTables(user_data.opt, user_data.value,user_data.page)
+                #print Tables
                 return ComFnObj.Responser(Tables, "Table list", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
@@ -1482,6 +1528,7 @@ class table:
                 if len(TableData)==0:
 
                     if user_data.opt == str(1):
+
                         entries = db.insert('tbl_table', barn_id_fk=BarnID, \
                                             table_number=user_data.number)
                     elif user_data.opt == str(2):
@@ -1541,19 +1588,20 @@ class chair:
                 t = db.transaction()
                 user_data = web.input(opt=1)
                 TableID = ComFnObj.Decrypt(user_data.table)
-                ChairData = ComFnObj.GetChairs('numbertable', [user_data.table, user_data.number])
-                if len(ChairData) == 0:
-                    if user_data.opt == str(1):
-                        entries = db.insert('tbl_chair', table_id_fk=TableID, \
-                                            chair_number=user_data.number)
-                    elif user_data.opt == str(2):
+                if user_data.opt == str(1):
+                    Query="INSERT INTO `tbl_chair` (`chair_number`, `table_id_fk`) SELECT COUNT(*) + 1," +TableID +" FROM `tbl_chair` where table_id_fk=" +TableID
+                    entries=db.query(Query)
+                    #entries = db.insert('tbl_chair', table_id_fk=TableID,chair_number=user_data.number)
+                elif user_data.opt == str(2):
+                    ChairData = ComFnObj.GetChairs('numbertable', [user_data.table, user_data.number])
+                    if len(ChairData) == 0:
                         entries = db.update('tbl_chair', table_id_fk=TableID, \
-                                            chair_number=user_data.number,
-                                            where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                                        chair_number=user_data.number,
+                                        where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
                     else:
-                        return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+                        return ComFnObj.Responser([], "Same chair number exist in the table", "failure")
                 else:
-                    return ComFnObj.Responser([], "Same chair number exist in the table", "failure")
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
@@ -1723,7 +1771,7 @@ class organiser:
                 t = db.transaction()
                 user_data = web.input(opt=1)
                 user_data.type=ComFnObj.Decrypt(user_data.type)
-                print user_data.type
+                #print user_data.type
                 if user_data.opt == str(1):
                     entries = db.insert('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
                                         organiser_description=user_data.description,\
@@ -1763,7 +1811,7 @@ class feestructure:
             user_data = web.input(opt='list', value=-1)
             if feestructureid:
                 user_data.value = feestructureid
-            print user_data
+            #print user_data
             FeeStructure = ComFnObj.GetFeeStructure(user_data.opt, user_data.value)
             return ComFnObj.Responser(FeeStructure, "Fee structure", "success")
         except Exception as e:
@@ -1780,7 +1828,7 @@ class feestructure:
             # user_data = json.loads(json_input)
 
             user_data = web.input(opt=1)
-            print json.loads(user_data.structure)
+            #print json.loads(user_data.structure)
             if user_data.opt == str(1):
                 entries = db.insert('tbl_feestructure', feestructure_title=user_data.title,feestructure_fee=user_data.structure)
             elif user_data.opt == str(2):
@@ -1901,7 +1949,7 @@ class enroll:
                     t = db.transaction()
                     user_data = web.input(opt=1)
                     userid=ComFnObj.GetIdFromAuth(Authcode)
-                    print userid
+                    #print userid
                     if user_data.opt == str(1):
                         if ComFnObj.GetEnrolledCourse("isexist",[ComFnObj.Encrypt(str(userid)),courseid]):
                             raise ValueError("Already enrolled")
@@ -1951,7 +1999,7 @@ class profile:
                     user_data.value=profileid
 
                 Profiles = ComFnObj.GetProfiles(user_data.opt, user_data.value)
-                print Profiles
+                #print Profiles
                 return ComFnObj.Responser(Profiles, "Profile list", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
