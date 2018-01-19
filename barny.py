@@ -6,6 +6,7 @@ import urllib
 import re
 import linecache
 import sys
+import os
 import MySQLdb
 import collections
 import web
@@ -84,6 +85,7 @@ class Commonfunctions:
     KEY_SIZE = 16
     BLOCK_SIZE = 32
     KEY="345dsfdf32432SDGGF234dksj4djKJKJ"
+    BASEDOC='http://localhost/BarnPort'
     def SMSEmailLog(self,To,From,Type,API,Message):
         try:
               db.insert('smsEmailLog',recepient=To,frm=From,details=Type,apiCall=API,message=Message)
@@ -311,40 +313,59 @@ class Commonfunctions:
             JAminities=[]
             if OPT == "single":
                 ID=self.Decrypt(value)
-                Query="SELECT `barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_id`='"+ID+"'"
+                Query="SELECT  0 as totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_id`='"+ID+"'"
+            elif OPT == "limitlist":
+                ID = self.Decrypt(value)
+                Query = "SELECT  0 as totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn` where `barn_id`='" + ID + "'"
+
             elif OPT=="list":
                 Query="SELECT totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`,(SELECT COUNT(*) totalCount FROM tbl_barn) c limit "+str(start)+","+str(end)
+            elif OPT == "combo":
+                 Query = "SELECT  0 as totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`"
             elif OPT=="location":
                 Query="SELECT totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`,(SELECT COUNT(*) totalCount FROM tbl_barn where `barn_location`='"+str(value)+"') c where `barn_location`='"+str(value)+"' limit "+str(start)+","+str(end)
            
             entries = db.query(Query)
             rows = entries.list();
+            JCount = 0
             if rows:
                 #print rows
                 for row in rows:
-                    if row['barn_amenities']!="":
-                        JAminities=self.GetAminities('closedlist',row['barn_amenities'])
+                    if OPT!="combo" and OPT!='limitlist':
+                        if row['barn_amenities']!="":
+                            JAminities=self.GetAminities('closedlist',row['barn_amenities'])
+                        else:
+                            JAminities = []
+
+
+                        JObj={"id":self.Encrypt(str(row['barn_id'])),
+                            "location":row['barn_location'],
+                            "title":row['barn_title'],
+                            "poc":row['barn_poc'],
+                            "phone":row['barn_phone'],
+                            "address":row['barn_address'],
+                            "amenities":JAminities,
+                            "floor":self.GetCount("floor",row['barn_id']),
+                            "exhibit":self.GetCount("exhibit",row['barn_id']),
+                            "table":self.GetCount("table",row['barn_id']),
+                            "classroom":self.GetCount("classroom",row['barn_id'])
+                            }
+                        JArray.append(JObj);
                     else:
-                        JAminities = []
+                        JObj = {"id": self.Encrypt(str(row['barn_id'])),
+                                "location": row['barn_location'],
+                                "title": row['barn_title']
+                                }
+                        JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
 
-
-                    JObj={"id":self.Encrypt(str(row['barn_id'])),
-                        "location":row['barn_location'],
-                        "title":row['barn_title'],
-                        "poc":row['barn_poc'],
-                        "phone":row['barn_phone'],
-                        "address":row['barn_address'],
-                        "amenities":JAminities
-                        
-                        }
-                    JArray.append(JObj);
-            JCount=0
-            if OPT=="single":
+            if OPT=="single" or OPT=='limitlist':
                 return JArray[0]
+            elif OPT == "closedlist" or OPT == "combo":
+                return JArray
             else:
-                if row['totalCount']:
-                    JCount=row['totalCount']
-                    JRespo.append({"totalrecords":JCount,'data':JArray})
+                JRespo.append({"totalrecords":JCount,'data':JArray})
                 return JRespo
         except Exception as e:
             self.PrintException("FN_GetBarns");
@@ -357,11 +378,11 @@ class Commonfunctions:
             JRespo=[]
             JResponse=collections.OrderedDict()
             if OPT == "single":
-                Query="SELECT `amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities` WHERE `amenities_id`="+str(value)
+                Query="SELECT  0 as totalCount,`amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities` WHERE `amenities_id`="+str(value)
             elif OPT=="list":
                 Query="SELECT `totalCount`,`amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities`,(SELECT COUNT(*) totalCount FROM tbl_amenities) c limit "+str(start)+","+str(end)
             elif OPT == "combo":
-                Query = "SELECT `amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities`"
+                Query = "SELECT  0 as totalCount,`amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities`"
             elif OPT=='closedlist':
                 if value!='':
                     Query="SELECT 0 as `totalCount`,`amenities_id`, `amenities_title`,`amenities_icon` FROM `tbl_amenities` where `amenities_id` in ("+str(value)+")"
@@ -375,15 +396,18 @@ class Commonfunctions:
                 for row in rows:
                     JObj={"id":self.Encrypt(str(row['amenities_id'])),
                             "title":row['amenities_title'],
-                            "icon":row['amenities_icon'],
+                            "icon":self.IsFilepresent('amenities',row['amenities_icon']),
                          }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT=="single":
                 return JArray[0]
             elif OPT == "closedlist" or OPT=="combo":
                 return JArray
             else:
-                JCount = row['totalCount']
+
                 JRespo.append({"totalrecords": JCount, 'data': JArray})
                 return JRespo
         except Exception as e:
@@ -393,6 +417,7 @@ class Commonfunctions:
         try:
             JArray = []
             JAminities = []
+            JCount=0
             if OPT == "single":
                 ID = self.Decrypt(value)
                 Query = "SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_id`='" + ID + "'"
@@ -413,10 +438,13 @@ class Commonfunctions:
 
                 for row in rows:
                     JObj = {"id": self.Encrypt(str(row['classroom_id'])),
-                            "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
+                            "barn": self.GetBarns('limitlist',self.Encrypt(str(row['barn_id_fk']))),
                             "capacity": row['classroom_capacity']
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT=="single":
                 return JArray[0]
             else:
@@ -431,6 +459,7 @@ class Commonfunctions:
             JArray = []
             JAminities = []
             JRespo=[]
+            JCount=0
             if OPT == "single":
                 ID = self.Decrypt(value)
                 Query = "SELECT 0 as `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_id`='" + ID + "'"
@@ -445,7 +474,7 @@ class Commonfunctions:
                 BarnID = self.Decrypt(value[0])
                 TableNumber =value[1]
                 Query = "SELECT  0 as `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(TableNumber) + "' and barn_id_fk='"+str(BarnID)+"'"
-
+                print Query
             #elif OPT == "capacity":
             #    Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
             #        value) + "'"
@@ -456,17 +485,19 @@ class Commonfunctions:
 
                 for row in rows:
                     JObj = {"id": self.Encrypt(str(row['table_id'])),
-                            "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
+                            "barn": self.GetBarns('limitlist',self.Encrypt(str(row['barn_id_fk']))),
                             "number": row['table_number'],
                             "chair":self.GetChairs('table',self.Encrypt(str(row['table_id']))),
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT=="single":
                 return JArray[0]
             elif OPT == "closedlist" or OPT=="combo":
                 return JArray
             else:
-                JCount = row['totalCount']
                 JRespo.append({"totalrecords": JCount, 'data': JArray})
                 return JRespo
         except Exception as e:
@@ -506,11 +537,13 @@ class Commonfunctions:
                             "bookinghistory":self.GetChairBookingHistory('single',self.Encrypt(str(row['chair_id'])))
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
 
                 if OPT == "single":
                     return JArray[0]
                 else:
-                    JCount = row['totalCount']
+
                     JRespo.append({"totalrecords": JCount, 'data': JArray})
                     return JRespo
             else:
@@ -558,10 +591,9 @@ class Commonfunctions:
             JAminities = []
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT  `floor_id`, `floor_capacity` FROM `tbl_floor`  where `barn_id_fk`='" + ID + "'"
+                Query = "SELECT  `floor_id`, `floor_capacity` FROM `tbl_floor`  where `floor_id`='" + ID + "'"
             elif OPT == "list":
                 Query = "SELECT  `floor_id`, `floor_capacity` FROM `tbl_floor` "
-
            # elif OPT == "capacity":
           #      Query = " SELECT  `barn_id_fk`, `floor_capacity` FROM `tbl_floor`  where `floor_capacity`='" + str(value) + "'"
 
@@ -571,10 +603,11 @@ class Commonfunctions:
 
                 for row in rows:
                     JObj = {"id": self.Encrypt(str(row['floor_id'])),
-                            "barn": self.GetBarns('single', self.Encrypt(str(row['floor_id']))),
+                            "barn": self.GetBarns('limitlist', self.Encrypt(str(row['floor_id']))),
                             "capacity": row['floor_capacity']
                             }
                     JArray.append(JObj);
+
             if OPT == "single":
                 return JArray[0]
             else:
@@ -606,7 +639,7 @@ class Commonfunctions:
 
                 for row in rows:
                     JObj = {"id": self.Encrypt(str(row['exhibit_id'])),
-                            "barn": self.GetBarns('single',self.Encrypt(str(row['barn_id_fk']))),
+                            "barn": self.GetBarns('limitlist',self.Encrypt(str(row['barn_id_fk']))),
                             "capacity": row['exhibit_capacity']
                             }
                     JArray.append(JObj);
@@ -659,8 +692,11 @@ class Commonfunctions:
             JResponse = collections.OrderedDict()
             if OPT == "single":
                 value = self.Decrypt(str(value))
-                Query = "SELECT 0 as totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype` WHERE `eventtype_id`=" + str(
-                    value)
+                Query = "SELECT 0 as totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype` WHERE `eventtype_id`=" + str(value)
+            if OPT == "combo":
+                value = self.Decrypt(str(value))
+                Query = "SELECT 0 as totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype`"
+
             elif OPT == "list":
                 Query = "SELECT totalCount,`eventtype_id`, `eventtype_title` FROM `tbl_eventtype`,(SELECT COUNT(*) totalCount FROM tbl_eventtype) c limit " + str(
                     start) + "," + str(end)
@@ -692,11 +728,16 @@ class Commonfunctions:
             start = int(page) * 5;
             end = 5;
             JArray = []
+            JCount=0
             JResponse = collections.OrderedDict()
             if OPT == "single":
                 value = self.Decrypt(str(value))
                 Query = "SELECT 0 as totalCount,`organisertype_id`, `organisertype_title` FROM `tbl_organisertype` WHERE `organisertype_id`=" + str(
                     value)
+
+            if OPT == "combo":
+                value = self.Decrypt(str(value))
+                Query = "SELECT 0 as totalCount, `organisertype_id`, `organisertype_title` FROM `tbl_organisertype`"
             elif OPT == "list":
                 Query = "SELECT totalCount,`organisertype_id`, `organisertype_title` FROM `tbl_organisertype`,(SELECT COUNT(*) totalCount FROM tbl_organisertype) c limit " + str(
                     start) + "," + str(end)
@@ -711,12 +752,14 @@ class Commonfunctions:
                             "title": row['organisertype_title'],
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT == "single":
                 return JArray[0]
             elif OPT == "closedlist" or OPT == "combo":
                 return JArray
             else:
-                JCount = row['totalCount']
                 JRespo.append({"totalrecords": JCount, 'data': JArray})
                 return JRespo
 
@@ -728,6 +771,7 @@ class Commonfunctions:
             start = int(page) * 5;
             end = 5;
             JArray = []
+            JCount=0
             JResponse = collections.OrderedDict()
             if OPT == "single":
                 value = self.Decrypt(str(value))
@@ -746,12 +790,14 @@ class Commonfunctions:
                             "title": row['coursetype_title'],
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT == "single":
                 return JArray[0]
             elif OPT == "closedlist" or OPT == "combo":
                 return JArray
             else:
-                JCount = row['totalCount']
                 JRespo.append({"totalrecords": JCount, 'data': JArray})
                 return JRespo
 
@@ -793,20 +839,28 @@ class Commonfunctions:
             return e
     def GetOrganisers(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
+            start = int(page) * 5;
+            end = 5;
+            JRespo=[]
             JArray = []
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` where `organiser_id`='" + str(ID) + "'"
+                Query = "SELECT  0 as totalCount,`organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` where `organiser_id`='" + str(ID) + "'"
+            if OPT == "combo":
+                ID = self.Decrypt(value)
+                Query = "SELECT  0 as totalCount,`organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser`"
+
             elif OPT == "list":
-                Query = "SELECT `organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser`"
+                Query = "SELECT totalCount,`organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` ,(SELECT COUNT(*) totalCount FROM tbl_organiser) c limit "+str(start)+","+str(end)
 
             elif OPT == "type":
                 ID = self.Decrypt(value)
-                Query = "SELECT `organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` where `organisertype_id_fk`='" + str(
+                Query = "SELECT  0 as totalCount,`organiser_id`, `organisertype_id_fk`, `organiser_name`, `organiser_description`, `organiser_image` FROM `tbl_organiser` where `organisertype_id_fk`='" + str(
                     ID) + "'"
 
             entries = db.query(Query)
             rows = entries.list();
+            JCount=0
             if rows:
 
                 for row in rows:
@@ -815,46 +869,59 @@ class Commonfunctions:
                             "type": self.GetOrganiserTypes('single',self.Encrypt(str(row['organisertype_id_fk']))),
                             "name": row['organiser_name'],
                             "description": row['organiser_description'],
-                            "image": row['organiser_image'],
+                            "image": self.IsFilepresent('organiser',row['organiser_image']),
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT == "single":
                 return JArray[0]
-            else:
+            elif OPT == "closedlist" or OPT == "combo":
                 return JArray
+            else:
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
         except Exception as e:
             self.PrintException("FN_GetOrganiser");
             return e
     def GetFeeStructure(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
-        #print str(value)+" "+OPT
         try:
+            start = int(page) * 5;
+            end = 5;
+            JRespo = []
             JArray = []
+            JCount = 0
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure`  where `feestructure_id`='" + str(ID) + "'"
+                Query = "SELECT 0 as totalCount,`feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure`  where `feestructure_id`='" + str(ID) + "'"
+            elif OPT == "combo":
+                Query = "SELECT 0 as totalCount,`feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure`"
             elif OPT == "list":
-                Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure`"
-
-            elif OPT == "course":
-                ID = self.Decrypt(value)
-                Query = "SELECT `feestructure_id`, `feestructure_title`, `feestructure_fee` `feestructure_id_fk` FROM" \
-                        " `tbl_course` ,`tbl_feestructure` where `feestructure_id_fk`=`feestructure_id` and course_id='" + str(ID) + "'"
+                Query = "SELECT totalCount,`feestructure_id`, `feestructure_title`, `feestructure_fee` FROM `tbl_feestructure` ,(SELECT COUNT(*) totalCount FROM tbl_feestructure) c limit "+str(start)+","+str(end)
 
             entries = db.query(Query)
             rows = entries.list();
             if rows:
-
                 for row in rows:
                     FeeId=self.Encrypt(str(row['feestructure_id']))
                     JObj = {"id": FeeId,
                             "title": row['feestructure_title'],
                             "structure": json.loads(row['feestructure_fee'])
                             }
-                    JArray.append(JObj);
+                    JArray.append(JObj)
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT == "single":
                 return JArray[0]
-            else:
+            elif OPT == "closedlist" or OPT == "combo":
                 return JArray
+            else:
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
         except Exception as e:
             self.PrintException("FN_GetFeeStructure");
             return e
@@ -1007,7 +1074,7 @@ class Commonfunctions:
 
                     JObj = {"id":MapId ,
                             "course": self.GetCourse("single",CourseId),
-                            "barn": self.GetBarns("single",BarnId)
+                            "barn": self.GetBarns("limitlist",BarnId)
                            }
                     JArray.append(JObj);
             if OPT == "single" or OPT=="getidfromcnb":
@@ -1019,20 +1086,22 @@ class Commonfunctions:
             return e
     def GetEvent(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
-
+            start = int(page) * 5;
+            end = 5;
+            JRespo = []
             JArray = []
+            JCount=0
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `event_event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
-                        " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` WHERE  event_id='" + str(
-                    ID) + "'"
+                Query = "SELECT 0 as totalCount,`event_event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
+                        " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` WHERE  event_id='" + str(ID) + "'"
             elif OPT == "list":
-                Query = "SELECT `event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
-                        " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event`"
+                Query = "SELECT totalCount,`event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
+                        " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` ,(SELECT COUNT(*) totalCount FROM tbl_event) c limit "+str(start)+","+str(end)
             elif OPT == "type":
                 ID = self.Decrypt(value)
-                Query = "SELECT `event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`, " \
-                        "`organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` WHERE  `eventtype_id_fk`='" + str(ID) + "'"
+                Query = "SELECT totalCount,`event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`, " \
+                        "`organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event`,(SELECT COUNT(*) totalCount FROM tbl_event  WHERE  `eventtype_id_fk`='" + str(ID) + ") c  WHERE  `eventtype_id_fk`='" + str(ID) + "' limit "+str(start)+","+str(end)
 
             entries = db.query(Query)
             rows = entries.list();
@@ -1058,11 +1127,18 @@ class Commonfunctions:
                             "type": EventType,
                             "tags": row['event_tags'],
                             }
-                    JArray.append(JObj);
+                    JArray.append(JObj)
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT == "single":
                 return JArray[0]
-            else:
+            elif OPT == "closedlist" or OPT == "combo":
                 return JArray
+            else:
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
         except Exception as e:
             self.PrintException("FN_GetCourse");
             return e
@@ -1114,6 +1190,58 @@ class Commonfunctions:
         else:
             return IStr
 
+    def GetCount(self, OPT, value=-1):  # S is single A is array
+        try:
+
+            JArray = []
+            JResponse = collections.OrderedDict()
+            if OPT == "classroom":
+                Query = "SELECT count(*) as totalCount FROM `tbl_classroom` WHERE `barn_id_fk`=" + str(value)
+            elif OPT == "floor":
+                Query = "SELECT count(*) as totalCount FROM `tbl_floor` WHERE `floor_id`=" + str(value)
+            elif OPT == "exhibit":
+                Query = "SELECT count(*) as totalCount FROM `tbl_exhibit` WHERE `barn_id_fk`=" + str(value)
+            elif OPT == "table":
+                Query = "SELECT count(*) as totalCount FROM `tbl_table` WHERE `barn_id_fk`=" + str(value)
+            #print Query
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+                for row in rows:
+                    Count =row['totalCount']
+            else:
+                Count=0
+            return Count
+
+        except Exception as e:
+            self.PrintException("FN_GetCount_"+OPT);
+            return e
+    def GetNumber(self,OPT,id):
+        if OPT=="table":
+            Query = "SELECT  `table_number` FROM `tbl_table`  where `barn_id_fk`='" + str(id) + "'"
+            entries = db.query(Query)
+            rows = entries.list();
+            if rows:
+                for row in rows:
+                    for i in range[1,100]:
+                        if i!=row['table_number']:
+                            return i
+            else:
+                return 1
+    def IsFilepresent(self,OPT,file):
+
+        if OPT=='amenities':
+            X=os.path.exists(self.BASEDOC+'/images/amenities/'+file)
+            if X or file=='':
+                return self.BASEDOC+'/images/amenities/placeholder.png'
+            else:
+                return self.BASEDOC+'/images/amenities/'+file
+        elif OPT=='organiser':
+            X = os.path.exists(self.BASEDOC+'/images/organiser/' + file)
+            if X or file=='':
+                return self.BASEDOC+'/images/organiser/placeholder.png'
+            else:
+                return self.BASEDOC+'/images/organiser/' + file
 class checkregistration:
     def GET(self):
 
@@ -1312,12 +1440,14 @@ class barn:
                 if  user_data.opt==str(1):
                     user_data.amenities = json.loads(user_data.amenities)
                     amen=[]
+                    print user_data.amenities
                     for amenitits in user_data.amenities:
                         amen.append(ComFnObj.Decrypt(amenitits))
                     entries = db.insert('tbl_barn', barn_title=user_data.title, \
                                         barn_location=user_data.location,barn_poc=user_data.poc, \
                                         barn_phone=user_data.phone, barn_address=user_data.address, \
                                        barn_amenities=','.join(amen))
+
                 elif user_data.opt==str(2):
                     amen = []
                     user_data.amenities = json.loads(user_data.amenities)
@@ -1335,12 +1465,17 @@ class barn:
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
-            t.rollback()
+            if e[0]==1062:
+                message="Title already exist"
+            else:
+                message=str(e)
             ComFnObj.PrintException("API_BARN_POST")
-            return ComFnObj.Responser([],str(e.message),"error")
+            return ComFnObj.Responser([], message, "error")
+
         else:
             t.commit()
-            return ComFnObj.Responser([],"Operation success","success")
+            print entries
+            return ComFnObj.Responser(ComFnObj.Encrypt(str(entries)),"Operation success","success")
 class commonlist:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1406,8 +1541,7 @@ class commonlist:
                 t = db.transaction()
                 user_data = web.input(opt=1,_unicode=False)
                 Query = ComFnObj.QueryMaker(type, user_data)
-
-                if user_data.opt != str(1) or  user_data.opt != str(2):
+                if user_data.opt != str(1) and  user_data.opt != str(2):
                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
                 entries=db.query(Query)
             else:
@@ -1451,7 +1585,7 @@ class classroom:
             ComFnObj.PrintException("API_CLASSROOM_GET")
             return ComFnObj.Responser(str(e.message), "Error in fetching Barn list", "error")
 
-    def POST(self):
+    def POST(self,classid):
 
         try:
 
@@ -1524,21 +1658,19 @@ class table:
                 # user_data = json.loads(json_input)
                 user_data = web.input(opt=1)
                 BarnID = ComFnObj.Decrypt(user_data.barn)
-                TableData=ComFnObj.GetTables('numberbarn',[user_data.barn,user_data.number])
-                if len(TableData)==0:
+                TableData=ComFnObj.GetNumber('table',user_data.barn)
+                if user_data.opt == str(1):
 
-                    if user_data.opt == str(1):
+                    entries = db.insert('tbl_table', barn_id_fk=BarnID, \
+                                            table_number=TableData)
+                elif user_data.opt == str(2):
 
-                        entries = db.insert('tbl_table', barn_id_fk=BarnID, \
-                                            table_number=user_data.number)
-                    elif user_data.opt == str(2):
-                        entries = db.update('tbl_table', barn_id_fk=BarnID, \
-                                            table_number=user_data.number,
+                    entries = db.update('tbl_table', barn_id_fk=BarnID, \
+                                            table_number=TableData,
                                             where="table_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
-                    else:
-                        return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
                 else:
-                    return ComFnObj.Responser([], "Same table number exist in the barn", "failure")
+                    return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
+
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
@@ -1658,16 +1790,18 @@ class floor:
                 elif user_data.opt == str(2):
                     entries = db.update('tbl_floor', floor_id=BarnID, \
                                         floor_capacity=user_data.capacity,
-                                        where="floor_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                                        where="floor_id='" + ComFnObj.Decrypt(str(user_data.BarnID)) + "'")
                 else:
                     return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
-
             ComFnObj.PrintException("API_FLOOR_POST")
-            return ComFnObj.Responser([], str(e.message), "error")
+            if e[0]==1062:
+                return ComFnObj.Responser([], "Barn can only have one floor", "error")
+            else:
+                return ComFnObj.Responser([], str(e.message), "error")
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
@@ -1747,11 +1881,12 @@ class organiser:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
 
-                user_data = web.input(opt='list', value=-1)
+                user_data = web.input(opt='list', value=-1,page=1,_unicode=False)
                 if organiserid:
                     user_data.opt = 'single'
                     user_data.value = organiserid
-                Organiser = ComFnObj.GetOrganisers(user_data.opt, user_data.value)
+                user_data.page=int(user_data.page)-1
+                Organiser = ComFnObj.GetOrganisers(user_data.opt, user_data.value,user_data.page)
                 return ComFnObj.Responser(Organiser, "Organiser list", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
@@ -1773,13 +1908,48 @@ class organiser:
                 user_data.type=ComFnObj.Decrypt(user_data.type)
                 #print user_data.type
                 if user_data.opt == str(1):
+                    print user_data
+
+                    Files = json.loads(user_data.image)
+                    # print Files
+                    NewFileName = Files['name']
+                    if NewFileName != "":
+                        Salt = "$343dddSS"
+                        Rnd = randint(2, 90000)
+                        String = NewFileName + str(Rnd) + Salt
+                        m = hashlib.md5()
+                        m.update(String)
+                        Random = m.hexdigest()
+                        NewFileName = str(Random) + "_" + NewFileName
+                        filecontent = str(Files['content'])
+                        decoded_string = base64.b64decode(filecontent)
+                        # print filecontent
+                        with open('/var/www/html/BarnPort/images/organiser/' + NewFileName, "wb") as fout:
+                            fout.write(decoded_string)
+
                     entries = db.insert('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
                                         organiser_description=user_data.description,\
-                                        organiser_image=user_data.image)
+                                        organiser_image=NewFileName)
                 elif user_data.opt == str(2):
-                    entries = db.update('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
+                        Files = json.loads(user_data.image)
+                        NewFileName = Files['name']
+                        if NewFileName != "":
+                            Salt = "$343dddSS"
+                            Rnd = randint(2, 90000)
+                            String = NewFileName + str(Rnd) + Salt
+                            m = hashlib.md5()
+                            m.update(String)
+                            Random = m.hexdigest()
+                            NewFileName = str(Random) + "_" + NewFileName
+                            filecontent = str(Files['content'])
+                            decoded_string = base64.b64decode(filecontent)
+                            # print filecontent
+                            with open('/var/www/html/BarnPort/images/organiser/' + NewFileName, "wb") as fout:
+                                fout.write(decoded_string)
+
+                        entries = db.update('tbl_organiser', organisertype_id_fk=user_data.type,organiser_name=user_data.name,\
                                         organiser_description=user_data.description,\
-                                        organiser_image=user_data.image,
+                                        organiser_image=NewFileName,
                                         where="organiser_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
                 else:
                     return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
@@ -1808,11 +1978,11 @@ class feestructure:
     def GET(self, feestructureid):
         try:
             ComFnObj = Commonfunctions()
-            user_data = web.input(opt='list', value=-1)
+            user_data = web.input(opt='list', value=-1,page=1)
             if feestructureid:
                 user_data.value = feestructureid
-            #print user_data
-            FeeStructure = ComFnObj.GetFeeStructure(user_data.opt, user_data.value)
+            user_data.page = int(user_data.page) - 1
+            FeeStructure = ComFnObj.GetFeeStructure(user_data.opt, user_data.value,user_data.page   )
             return ComFnObj.Responser(FeeStructure, "Fee structure", "success")
         except Exception as e:
             ComFnObj.PrintException("API_FEESTRUCTURE_GET")
@@ -2057,10 +2227,11 @@ class event:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-                user_data = web.input(opt='list', value=-1)
+                user_data = web.input(opt='list', value=-1,page=1)
                 if eventid:
                     user_data.value = eventid
-                Event = ComFnObj.GetEvent(user_data.opt, user_data.value)
+                user_data.page=int(user_data.page)-1
+                Event = ComFnObj.GetEvent(user_data.opt, user_data.value,user_data.page)
                 return ComFnObj.Responser(Event, "Event", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
