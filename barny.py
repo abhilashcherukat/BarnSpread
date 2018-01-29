@@ -324,7 +324,7 @@ class Commonfunctions:
                  Query = "SELECT  0 as totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`"
             elif OPT=="location":
                 Query="SELECT totalCount,`barn_id`, `barn_location`, `barn_title`, `barn_poc`, `barn_phone`, `barn_address`, `barn_amenities` FROM `tbl_barn`,(SELECT COUNT(*) totalCount FROM tbl_barn where `barn_location`='"+str(value)+"') c where `barn_location`='"+str(value)+"' limit "+str(start)+","+str(end)
-           
+            #print Query
             entries = db.query(Query)
             rows = entries.list();
             JCount = 0
@@ -474,7 +474,7 @@ class Commonfunctions:
                 BarnID = self.Decrypt(value[0])
                 TableNumber =value[1]
                 Query = "SELECT  0 as `totalCount`,`table_id`, `table_number`, `barn_id_fk` FROM `tbl_table`  where `table_number`='" + str(TableNumber) + "' and barn_id_fk='"+str(BarnID)+"'"
-                print Query
+                # print Query
             #elif OPT == "capacity":
             #    Query = " SELECT `classroom_id`, `barn_id_fk`, `classroom_capacity` FROM `tbl_classroom`  where `classroom_capacity`='" + str(
             #        value) + "'"
@@ -777,6 +777,8 @@ class Commonfunctions:
                 value = self.Decrypt(str(value))
                 Query = "SELECT 0 as totalCount,`coursetype_id`, `coursetype_title` FROM `tbl_coursetype` WHERE `coursetype_id`=" + str(
                     value)
+            if OPT == "combo":
+                Query = "SELECT 0 as totalCount,`coursetype_id`, `coursetype_title` FROM `tbl_coursetype`"
             elif OPT == "list":
                 Query = "SELECT totalCount,`coursetype_id`, `coursetype_title` FROM `tbl_coursetype`,(SELECT COUNT(*) totalCount FROM tbl_coursetype) c limit " + str(start) + "," + str(end)
 
@@ -926,22 +928,28 @@ class Commonfunctions:
             self.PrintException("FN_GetFeeStructure");
             return e
     def GetCourse(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
-        try:
-
+        #try:
+            start = int(page) * 5;
+            end = 5;
+            JRespo = []
             JArray = []
+            JCount=0
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
-                        " `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course` WHERE course_id='" + str(ID) + "'"
+                Query = "SELECT 0 as totalCount,`course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
+                        " `feestructure_id_fk`,organiser_id_fk, `coursetype_id_fk`, `course_tags` FROM `tbl_course` WHERE course_id='" + str(ID) + "'"
+            elif OPT == "combo":
+                Query = "SELECT 0 as totalCount,`course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`, `course_status`," \
+                        " `feestructure_id_fk`,organiser_id_fk, `coursetype_id_fk`, `course_tags` FROM `tbl_course`"
             elif OPT == "list":
-                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`," \
-                        " `course_status`, `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course`"
+                Query = "SELECT totalCount,`course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, `course_image`," \
+                        " `course_status`,organiser_id_fk, `feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM `tbl_course`,(SELECT COUNT(*) totalCount FROM tbl_course) c limit "+str(start)+","+str(end)
             elif OPT == "type":
                 ID = self.Decrypt(value)
-                Query = "SELECT `course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, " \
-                        "`course_image`,  `course_status`,`feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM " \
+                Query = "SELECT 0 as totalCount,`course_id`, `course_title`, `course_desc`, `course_duration`, `course_agelimit`, " \
+                        "`course_image`,organiser_id_fk,  `course_status`,`feestructure_id_fk`, `coursetype_id_fk`, `course_tags` FROM " \
                         "`tbl_course` where `coursetype_id_fk`='" + str(ID) + "'"
-
+            print Query
             entries = db.query(Query)
             rows = entries.list();
             if rows:
@@ -950,7 +958,9 @@ class Commonfunctions:
                     CourseId = self.Encrypt(str(row['course_id']))
                     FeeStructure=self.GetFeeStructure("single", self.Encrypt(str(row['feestructure_id_fk'])))
                     CourseType=self.GetCourseTypes("single", self.Encrypt(str(row['coursetype_id_fk'])))
-
+                    Organiser=self.GetOrganisers("single", self.Encrypt(str(row['organiser_id_fk'])))
+                    #print CourseId
+                    Locations=self.GetCourseClassMap('course',CourseId)
                     JObj = {"id": CourseId,
                             "title": row['course_title'],
                             "type":CourseType,
@@ -958,18 +968,27 @@ class Commonfunctions:
                             "description":row['course_desc'],
                             "duration":json.loads(row['course_duration']),
                             "agelimit":json.loads(row['course_agelimit']),
-                            "image":row['course_image'],
+                            "image":self.IsFilepresent('course',row['course_image']),
                             "status":row['course_status'],
+                            "organiser":Organiser,
                             "tags":row['course_tags'],
+                            "venues":Locations
                             }
                     JArray.append(JObj);
+                    if row['totalCount']:
+                        JCount = row['totalCount']
+
             if OPT == "single":
                 return JArray[0]
-            else:
+            elif OPT == "closedlist" or OPT == "combo":
                 return JArray
-        except Exception as e:
-            self.PrintException("FN_GetCourse");
-            return e
+            else:
+                JRespo.append({"totalrecords": JCount, 'data': JArray})
+                return JRespo
+
+        #except Exception as e:
+        #    self.PrintException("FN_GetCourse");
+        #    return e
     def GetEnrolledCourse(self, OPT='list', value=-1,page=1, datatype="S"):  # S is single A is array
         try:
 
@@ -1060,6 +1079,9 @@ class Commonfunctions:
                 courseId = self.Decrypt(value[1])
                 Query = "SELECT `map_id`, `course_id_fk`, `barn_id_fk` FROM `tbl_classcoursemap` WHERE" \
                         " `barn_id_fk`='" + str(barnId) + "' and `course_id_fk`='" + str(courseId) + "'"
+            elif OPT=='course':
+                courseId = self.Decrypt(value)
+                Query = "SELECT `map_id`, `course_id_fk`, `barn_id_fk` FROM `tbl_classcoursemap` WHERE `course_id_fk`='" + str(courseId) + "'"
             entries = db.query(Query)
             rows = entries.list();
             if rows:
@@ -1073,9 +1095,10 @@ class Commonfunctions:
 
 
                     JObj = {"id":MapId ,
-                            "course": self.GetCourse("single",CourseId),
                             "barn": self.GetBarns("limitlist",BarnId)
                            }
+                    if OPT!='course':
+                        JObj["course"]= self.GetCourse("single", CourseId),
                     JArray.append(JObj);
             if OPT == "single" or OPT=="getidfromcnb":
                 return JArray[0]
@@ -1093,7 +1116,7 @@ class Commonfunctions:
             JCount=0
             if OPT == "single":
                 ID = self.Decrypt(value)
-                Query = "SELECT 0 as totalCount,`event_event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
+                Query = "SELECT 0 as totalCount,`event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
                         " `organiser_id_fk`, `event_venue_id`, `eventtype_id_fk`, `event_tags` FROM `tbl_event` WHERE  event_id='" + str(ID) + "'"
             elif OPT == "list":
                 Query = "SELECT totalCount,`event_id`, `event_title`, `event_decscription`, `event_headerImg`, `feestructure_id_fk`, `event_status`, `event_start_date`, `event_end_date`," \
@@ -1112,18 +1135,19 @@ class Commonfunctions:
                     FeeStructure = self.GetFeeStructure("single", self.Encrypt(str(row['feestructure_id_fk'])))
                     EventType = self.GetEventTypes("single", self.Encrypt(str(row['eventtype_id_fk'])))
                     Organiser = self.GetOrganisers("single", self.Encrypt(str(row['organiser_id_fk'])))
+                    Venue = self.GetBarns("limitlist", self.Encrypt(str(row['event_venue_id'])))
 
                     JObj = {"id": EventID,
                             "title": row['event_title'],
                             "description": row['event_decscription'],
-                            "image": row['event_headerImg'],
+                            "image": self.IsFilepresent('event',row['event_headerImg']),
                             "fee": FeeStructure,
                             "type": EventType,
                             "status": row['event_status'],
                             "startdate": str(row['event_start_date']),
                             "enddate": str(row['event_end_date']),
                             "organiser":Organiser,
-                            "venue": row['event_venue_id'],
+                            "venue":Venue ,
                             "type": EventType,
                             "tags": row['event_tags'],
                             }
@@ -1190,6 +1214,22 @@ class Commonfunctions:
         else:
             return IStr
 
+    def DelQueryMaker(self,type):
+
+        # print data
+        fieldArr = {
+            "booking": ["tbl_bookingtype", "bookingtype_id", "bookingtype_title"],
+            "amenities": ["tbl_amenities", "amenities_id", "amenities_title", "amenities_icon"],
+            "tags": ["tbl_tags", "tag_id", "tag_title"],
+            "organiser": ["tbl_organisertype", "organisertype_id", "organisertype_title"],
+            "event": ["tbl_eventtype", "eventtype_id", "eventtype_title"],
+            "course": ["tbl_coursetype", "coursetype_id", "coursetype_title"]
+        }
+
+        IStr = "delete from " + str(fieldArr[type][0])+ " where "+str(fieldArr[type][1])+"=";
+        return IStr
+
+
     def GetCount(self, OPT, value=-1):  # S is single A is array
         try:
 
@@ -1242,6 +1282,18 @@ class Commonfunctions:
                 return self.BASEDOC+'/images/organiser/placeholder.png'
             else:
                 return self.BASEDOC+'/images/organiser/' + file
+        elif OPT == 'event':
+            X = os.path.exists(self.BASEDOC + '/images/event/' + file)
+            if X or file == '':
+                return self.BASEDOC + '/images/event/placeholder.png'
+            else:
+                return self.BASEDOC + '/images/event/' + file
+        elif OPT == 'course':
+            X = os.path.exists(self.BASEDOC + '/images/course/' + file)
+            if X or file == '':
+                return self.BASEDOC + '/images/course/placeholder.png'
+            else:
+                return self.BASEDOC + '/images/course/' + file
 class checkregistration:
     def GET(self):
 
@@ -1440,7 +1492,7 @@ class barn:
                 if  user_data.opt==str(1):
                     user_data.amenities = json.loads(user_data.amenities)
                     amen=[]
-                    print user_data.amenities
+                    #print user_data.amenities
                     for amenitits in user_data.amenities:
                         amen.append(ComFnObj.Decrypt(amenitits))
                     entries = db.insert('tbl_barn', barn_title=user_data.title, \
@@ -1474,8 +1526,26 @@ class barn:
 
         else:
             t.commit()
-            print entries
+            #print entries
             return ComFnObj.Responser(ComFnObj.Encrypt(str(entries)),"Operation success","success")
+    def DELETE(self,delid):
+        try:
+
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete tbl_barn from barn_id"+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_BARN_DEL")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class commonlist:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1558,7 +1628,28 @@ class commonlist:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,type):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            user_data = web.input(id=-1)
+            Authcode = header.get('HTTP_AUTHCODE')
+            print user_data
+            if ComFnObj.CheckAuth(Authcode):
+                delid=ComFnObj.Decrypt(user_data.id)
+                Query=ComFnObj.DelQueryMaker(type)
+                Query=Query+str(delid)
+                db.query(Query)
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+
+            ComFnObj.PrintException("API_COMMONLIST_DEL")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+
+            return ComFnObj.Responser([], "Operation success", "success")
 class classroom:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1616,7 +1707,24 @@ class classroom:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete tbl_classroom from classroom_id"+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_CLASS_DEL")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class table:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1681,7 +1789,24 @@ class table:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete from tbl_table where table_id="+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_EVENT_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class chair:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1740,6 +1865,24 @@ class chair:
             t.rollback()
 
             ComFnObj.PrintException("API_CHAIR_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
+
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete tbl_chair from chair_id"+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_CHAIR_DEL")
             return ComFnObj.Responser([], str(e.message), "error")
         else:
             t.commit()
@@ -1805,7 +1948,24 @@ class floor:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete tbl_floor from floor_id"+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_EVENT_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class exhibit:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1864,7 +2024,24 @@ class exhibit:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete tbl_exhibit from exhibit_id"+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_EVENT_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class organiser:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1908,8 +2085,6 @@ class organiser:
                 user_data.type=ComFnObj.Decrypt(user_data.type)
                 #print user_data.type
                 if user_data.opt == str(1):
-                    print user_data
-
                     Files = json.loads(user_data.image)
                     # print Files
                     NewFileName = Files['name']
@@ -1966,7 +2141,24 @@ class organiser:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete from tbl_organiser where organiser_id="+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_EVENT_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class feestructure:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -1981,8 +2173,9 @@ class feestructure:
             user_data = web.input(opt='list', value=-1,page=1)
             if feestructureid:
                 user_data.value = feestructureid
+                user_data.opt='single'
             user_data.page = int(user_data.page) - 1
-            FeeStructure = ComFnObj.GetFeeStructure(user_data.opt, user_data.value,user_data.page   )
+            FeeStructure = ComFnObj.GetFeeStructure(user_data.opt, user_data.value,user_data.page)
             return ComFnObj.Responser(FeeStructure, "Fee structure", "success")
         except Exception as e:
             ComFnObj.PrintException("API_FEESTRUCTURE_GET")
@@ -2002,6 +2195,8 @@ class feestructure:
             if user_data.opt == str(1):
                 entries = db.insert('tbl_feestructure', feestructure_title=user_data.title,feestructure_fee=user_data.structure)
             elif user_data.opt == str(2):
+                if feestructureid:
+                    user_data.id=feestructureid
                 entries = db.update('tbl_feestructure', feestructure_title=user_data.title,feestructure_fee=user_data.structure,where="feestructure_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
             else:
                 return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
@@ -2016,7 +2211,24 @@ class feestructure:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete from tbl_feestructure where feestructure_id="+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_FEE_DEL")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class course:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -2033,10 +2245,13 @@ class course:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-                user_data = web.input(opt='list', value=-1)
+                user_data = web.input(opt='list', value=-1,page=1)
+                user_data.page=int(user_data.page)-1
+                #print user_data.page
                 if courseid:
                     user_data.value = courseid
-                Course = ComFnObj.GetCourse(user_data.opt, user_data.value)
+                    user_data.opt='single'
+                Course = ComFnObj.GetCourse(user_data.opt, user_data.value,user_data.page)
                 return ComFnObj.Responser(Course, "Course", "success")
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
@@ -2057,23 +2272,50 @@ class course:
                 user_data = web.input(opt=1)
                 user_data.feestructure = ComFnObj.Decrypt(str(user_data.feestructure))
                 user_data.coursetype = ComFnObj.Decrypt(str(user_data.coursetype))
+                user_data.organiser = ComFnObj.Decrypt(str(user_data.organiser))
+                Files = json.loads(user_data.image)
+                # print Files
+                NewFileName = Files['name']
+                if NewFileName != "":
+                    Salt = "$343dddSS"
+                    Rnd = randint(2, 90000)
+                    String = NewFileName + str(Rnd) + Salt
+                    m = hashlib.md5()
+                    m.update(String)
+                    Random = m.hexdigest()
+                    NewFileName = str(Random) + "_" + NewFileName
+                    filecontent = str(Files['content'])
+                    decoded_string = base64.b64decode(filecontent)
+                    # print filecontent
+                    with open('/var/www/html/BarnPort/images/organiser/' + NewFileName, "wb") as fout:
+                        fout.write(decoded_string)
                 if user_data.opt == str(1):
 
                     entries = db.insert('tbl_course', course_title=user_data.title,course_desc=user_data.description,
     course_duration=user_data.duration,course_agelimit=user_data.agelimit,
-    course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
-    coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags)
+    course_image=NewFileName,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+    coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,organiser_id_fk=user_data.organiser)
+
                     locations=json.loads(user_data.location)
                     for location in locations:
                         db.insert('tbl_classcoursemap',course_id_fk=entries,barn_id_fk=ComFnObj.Decrypt(location))
 
                 elif user_data.opt == str(2):
                     if courseid:
-                        user_data.id = courseid
-                        entries = db.update('tbl_course', course_title=user_data.title,course_desc=user_data.description,
-    course_duration=user_data.duration,course_agelimit=user_data.agelimit,
-    course_image=user_data.image,course_status=user_data.status,feestructure_id_fk=user_data.feestructure,
-    coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                        user_data.id = ComFnObj.Decrypt(courseid)
+                        print "THis is the ID:"+user_data.id
+                        entries = db.update('tbl_course',course_title=user_data.title,course_desc=user_data.description,
+                                            course_duration=user_data.duration,course_agelimit=user_data.agelimit,
+                                            course_image=NewFileName,course_status=user_data.status,feestructure_id_fk=user_data.feestructure
+                                            ,organiser_id_fk=user_data.organiser,coursetype_id_fk=user_data.coursetype,course_tags=user_data.tags,where="course_id='" + user_data.id + "'")
+
+
+                        Query="delete from tbl_classcoursemap where course_id_fk="+user_data.id
+                        db.query(Query)
+                        locations = json.loads(user_data.location)
+                        for location in locations:
+                            #print str(location)+":"+str(ComFnObj.Decrypt(location))
+                            db.insert('tbl_classcoursemap', course_id_fk=user_data.id, barn_id_fk=ComFnObj.Decrypt(location))
                 else:
                     return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
@@ -2089,7 +2331,24 @@ class course:
         else:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete from tbl_course where course_id="+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_COURSE_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 class enroll:
     def OPTIONS(self,X):
         web.header('Access-Control-Allow-Origin', '*')
@@ -2229,6 +2488,7 @@ class event:
                 t = db.transaction()
                 user_data = web.input(opt='list', value=-1,page=1)
                 if eventid:
+                    user_data.opt='single'
                     user_data.value = eventid
                 user_data.page=int(user_data.page)-1
                 Event = ComFnObj.GetEvent(user_data.opt, user_data.value,user_data.page)
@@ -2240,7 +2500,7 @@ class event:
 
             return ComFnObj.Responser(str(e.message), "Error in  event list", "error")
 
-    def POST(self,courseid):
+    def POST(self,eventid):
 
         try:
 
@@ -2254,18 +2514,37 @@ class event:
                 user_data.eventtype = ComFnObj.Decrypt(str(user_data.eventtype))
                 user_data.barn = ComFnObj.Decrypt(str(user_data.barn))
                 user_data.organiser = ComFnObj.Decrypt(str(user_data.organiser))
+                Files = json.loads(user_data.image)
+                # print Files
+                NewFileName = Files['name']
+                if NewFileName != "":
+                    Salt = "$343dddSS"
+                    Rnd = randint(2, 90000)
+                    String = NewFileName + str(Rnd) + Salt
+                    m = hashlib.md5()
+                    m.update(String)
+                    Random = m.hexdigest()
+                    NewFileName = str(Random) + "_" + NewFileName
+                    filecontent = str(Files['content'])
+                    decoded_string = base64.b64decode(filecontent)
+                    # print filecontent
+                    with open('/var/www/html/BarnPort/images/event/' + NewFileName, "wb") as fout:
+                        fout.write(decoded_string)
+
                 if user_data.opt == str(1):
                     entries = db.insert('tbl_event', event_title=user_data.title,event_decscription=user_data.description,
-                    event_headerImg=user_data.image,event_start_date=user_data.start,event_end_date=user_data.end,
+                    event_headerImg=NewFileName,event_start_date=user_data.start,event_end_date=user_data.end,
                     event_status=user_data.status,feestructure_id_fk=user_data.feestructure,
                     eventtype_id_fk=user_data.eventtype,event_venue_id=user_data.barn,event_tags=user_data.tags,organiser_id_fk=user_data.organiser)
                 elif user_data.opt == str(2):
-                    if courseid:
-                        user_data.id = courseid
-                    entries = db.update('tbl_event', event_title=user_data.title,event_decscription=user_data.description,
-                    event_headerImg=user_data.image,event_start_date=user_data.start,event_end_date=user_data.end,
-                    event_status=user_data.status,feestructure_id_fk=user_data.feestructure,
-                    eventtype_id_fk=user_data.eventtype,event_venue_id=user_data.barn,event_tags=user_data.tags,organiser_id_fk=user_data.organiser,where="event_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    if eventid:
+                        user_data.id = eventid
+                        entries = db.update('tbl_event', event_title=user_data.title,event_decscription=user_data.description,
+                        event_headerImg=NewFileName,event_start_date=user_data.start,event_end_date=user_data.end,
+                        event_status=user_data.status,feestructure_id_fk=user_data.feestructure,
+                        eventtype_id_fk=user_data.eventtype,event_venue_id=user_data.barn,event_tags=user_data.tags,organiser_id_fk=user_data.organiser,where="event_id='" + ComFnObj.Decrypt(str(user_data.id)) + "'")
+                    else:
+                        return ComFnObj.Responser([], "No ID", "failure")
                 else:
                     return ComFnObj.Responser([], "opt must be 1 or 2", "failure")
             else:
@@ -2282,7 +2561,24 @@ class event:
             t.commit()
             return ComFnObj.Responser([], "Operation success", "success")
 
+    def DELETE(self,delid):
+        try:
 
+            ComFnObj = Commonfunctions()
+            header = web.ctx.environ
+            Authcode = header.get('HTTP_AUTHCODE')
+            if ComFnObj.CheckAuth(Authcode):
+                t = db.transaction()
+                db.query("delete from tbl_event where event_id="+str(ComFnObj.Decrypt(delid)))
+            else:
+                return ComFnObj.Responser([], "Authcode failed", "failure")
+        except Exception as e:
+            t.rollback()
+            ComFnObj.PrintException("API_EVENT_POST")
+            return ComFnObj.Responser([], str(e.message), "error")
+        else:
+            t.commit()
+            return ComFnObj.Responser([], "Operation success", "success")
 if __name__ == "__main__":
     app = web.application(urls, globals())
     app.run()
