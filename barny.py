@@ -1564,13 +1564,12 @@ class barn:
             return ComFnObj.Responser(ComFnObj.Encrypt(str(entries)),"Operation success","success")
     def DELETE(self,delid):
         try:
-
             ComFnObj = Commonfunctions()
             header = web.ctx.environ
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-                db.query("delete tbl_barn from barn_id"+str(ComFnObj.Decrypt(delid)))
+                db.query("delete from tbl_barn where barn_id="+str(ComFnObj.Decrypt(delid)))
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
@@ -1781,7 +1780,7 @@ class classroom:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-                db.query("delete tbl_classroom from classroom_id"+str(ComFnObj.Decrypt(delid)))
+                db.query("delete from tbl_classroom where classroom_id="+str(ComFnObj.Decrypt(delid)))
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
@@ -2040,7 +2039,7 @@ class floor:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-                db.query("delete tbl_floor from floor_id"+str(ComFnObj.Decrypt(delid)))
+                db.query("delete from tbl_floor where floor_id="+str(ComFnObj.Decrypt(delid)))
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
@@ -2117,12 +2116,12 @@ class exhibit:
             Authcode = header.get('HTTP_AUTHCODE')
             if ComFnObj.CheckAuth(Authcode):
                 t = db.transaction()
-                db.query("delete tbl_exhibit from exhibit_id"+str(ComFnObj.Decrypt(delid)))
+                db.query("delete from tbl_exhibit where exhibit_id="+str(ComFnObj.Decrypt(delid)))
             else:
                 return ComFnObj.Responser([], "Authcode failed", "failure")
         except Exception as e:
             t.rollback()
-            ComFnObj.PrintException("API_EVENT_POST")
+            ComFnObj.PrintException("API_EXHIBIT_DEL")
             return ComFnObj.Responser([], str(e.message), "error")
         else:
             t.commit()
@@ -2680,13 +2679,13 @@ class shchedule:
             print Events
 
             JArr=[]
-            JColor=['','#257e4a','#257eff','#25ff4a']
+            JColor=['','#ff1975','#965994','#00eb92']
             for Event in Events:
 
                 JObj={
                     'title': str(Event['title'])+", "+Event['venue']['title']+", "+Event['organiser']['name'],
-                    'start': Event['startdate']+"T00:00:00",
-                    'end': Event['enddate']+"T23:59:59",
+                    'start': Event['startdate'],
+                    'end': Event['enddate'],
                     'color': JColor[int(ComFnObj.Decrypt(Event['type']['id']))]
                 }
                 JArr.append(JObj)
