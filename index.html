@@ -1,0 +1,475 @@
+<html class=" js cssanimations">
+   <head>
+      <title>MagicMirror²</title>
+      <meta name="google" content="notranslate">
+      <meta http-equiv="Content-type" content="text/html; charset=utf-8">
+      <meta name="apple-mobile-web-app-capable" content="yes">
+      <meta name="apple-mobile-web-app-status-bar-style" content="black">
+      <meta name="format-detection" content="telephone=no">
+      <meta name="mobile-web-app-capable" content="yes">
+      <link rel="icon" href="data:;base64,iVBORw0KGgo=">
+      <link rel="stylesheet" type="text/css" href="css/main.css">
+      <link rel="stylesheet" type="text/css" href="css/roboto.css">
+      <!-- custom.css is loaded by the loader.js to make sure it's loaded after the module css files. -->
+      <script type="text/javascript">
+         var version = "2.2.2";
+      </script>
+      <link rel="stylesheet" type="text/css" href="css/font-awesome.min.css">
+      <link rel="stylesheet" type="text/css" href="css/weather-icons.css">
+      <link rel="stylesheet" type="text/css" href="css/custom.css">
+   </head>
+   <body cz-shortcut-listen="true">
+	 <div class="fullscreen-bg">
+		<video autoplay id="videoPlayer" class="fullscreen-bg__video"><source src="videos/2.mp4" type="video/mp4"></video>
+	</div>
+<div class="region fullscreen below">
+   <div class="container" style="display: none;"></div>
+</div>
+<div class="region top bar">
+   <!--div class="container" style="display: none;">
+      <div id="module_1_updatenotification" class="module updatenotification updatenotification" style="transition: opacity 0s; opacity: 0; position: fixed;">
+         <div class="module-content">
+            <div></div>
+         </div>
+      </div>
+   </div-->
+   <div class="region top left" style='z-index: 101;'>
+      <div class="container" style="display: block;">
+         <div id="module_2_clock" class="module clock clock">
+            <div class="module-content">
+               <div>
+                  <div class="date normal medium" id='date'>Wednesday, February 21, 2018</div>
+                  <div class="time bright large light" id='time'>4:31<sup class="dimmed">50</sup><span>pm</span></div>
+                  <div class="week dimmed medium"></div>
+               </div>
+            </div>
+         </div>
+         <div id="module_3_calendar" class="module calendar calendar" style="transition: opacity 1s; opacity: 1; position: static;">
+            <header class="module-header">Calendar</header>
+            <div class="module-content">
+               <table class="small tabler" id='calander'>
+               </table>
+            </div>
+         </div>
+      </div>
+   </div>
+   <div class="region top center" style='z-index: 100;'>
+      <div class="formdiv" >
+
+         <div>
+		<form id='Poster'>
+            <table>
+               <tr>
+                  <td>
+                     <label for="fname">Fullname</label>
+                     <input type="text" id="fullname" name="fullname" value='B' placeholder="Your name.."  onkeypress='Stayform();'>
+                  </td>
+                  <td>
+                     <label for="phone">Phone</label>
+                     <input type="text" id="phone" name="phone" value='35435' placeholder="Your phone" onkeypress='Stayform();'>
+                  </td>
+                  <td>
+                     <label for="phone">E-Mail</label>
+                     <input type="text" id="email" name="email" value='abhi.cherukat@gmail.com' placeholder="Your email" onkeypress='Stayform();'>
+                  </td>
+               </tr>
+               <tr>
+                  <td colspan=3>
+                     <label for="subject">Question?</label>
+			</td>
+			</tr>
+		   <tr>
+                  <td colspan=3>
+                     <textarea  id="question" name="question" placeholder="If you have any design related question, ask us."
+			     onkeypress='Stayform();'></textarea>
+                  </td>
+               </tr>
+               <tr>
+                  <td colspan=3>
+                     <input type="button" value="Submit" onclick='PostPerson();'><span id='TimerSpan'>10</span>
+                  </td>
+               </tr>
+            </table>
+		</form>
+         </div>
+      </div>
+   </div>
+   <div class="region top right">
+      <div class="container" style="display: block;">
+         <div id="module_5_currentweather" class="module currentweather currentweather" style="transition: opacity 1s; opacity: 1; position: static;">
+            <div class="module-content">
+               <div>
+                  <div class="normal medium">
+                     <!--span class="wi wi-strong-wind dimmed"></span>
+                        <span> 3</span><sup> E</sup><span>&nbsp;</span>
+                        <span>17</span><sup>&nbsp;</sup><sup class="wi wi-humidity humidityIcon">&nbsp;</sup><
+                        <span class="wi dimmed wi-sunset"></span><span> 6:27 PM</span-->
+                  </div>
+                  <div class="large light"><span id='weathericon' class="wi weathericon wi-day-sunny"></span><span class="bright" id='temp'> 30.0°C</span></div>
+               </div>
+            </div>
+         </div>
+         <div id="module_6_weatherforecast" class="module weatherforecast weatherforecast" style="transition: opacity 1s; opacity: 1; position: static;">
+            <header class="module-header">Weather Forecast Bangalore, IN</header>
+            <div class="module-content">
+               <table class="small tabler" id='forcast'>
+               </table>
+            </div>
+         </div>
+      </div>
+   </div>
+</div>
+<div class="region bottom bar">
+   <div class="container" style="display: block;">
+      <div id="module_7_newsfeed" class="module newsfeed newsfeed" style="transition: opacity 1.25s; opacity: 1; position: static;">
+         <div class="module-content">
+            <div>
+               <div class="light small dimmed" id='NewsTime'></div>
+               <div class="bright medium light" id='News'></div>
+            </div>
+         </div>
+      </div>
+   </div>
+   <div class="region bottom left">
+      <div class="container" style="display: none;"></div>
+   </div>
+   <div class="region bottom center">
+      <div class="container" style="display: none;"></div>
+   </div>
+   <div class="region bottom right">
+      <div class="container" style="display: none;"></div>
+   </div>
+</div>
+<div class="region fullscreen above">
+   <div class="container" style="display: none;"></div>
+</div>
+      <style>.ns-box {margin-left: auto; margin-right: auto;text-align: center;}</style>
+
+   </body>
+	<script src='js/jquery.min.js'></script>
+	<script src='js/wheather.js'></script>
+
+	<script>
+		var News=[];
+		var Cnt=0;
+		var video = document.getElementById('videoPlayer');
+		var DisplayHit=-1;
+		var Timer=10;
+		var x=false;
+		SlidersInToggle=false;
+		SlidersIn();
+		function GetWeather()
+		{
+			Url='http://api.openweathermap.org/data/2.5/weather?id=1277333&appid=f21a45080bfede27cd1784e1c109bef3&units=metric'
+			$.get(Url,function(data){
+				//console.log(data);
+				//return data;
+			})
+			.done(function(data) {
+				//console.log(data.main.temp);
+				Temp=data.main.temp
+				WIcon=GetWeatherIcon(data.weather[0].icon)	;
+				$("#temp").html(parseInt(Temp)+"°C")
+				$("#weathericon").addClass(WIcon)
+
+			})
+			.fail(function
+			(err) {console.log("Fail");});
+		}
+		GetWeather();
+
+		function GetForcast()
+		{
+			Url='http://api.openweathermap.org/data/2.5/forecast?id=1277333&appid=f21a45080bfede27cd1784e1c109bef3&units=metric'
+			$.get(Url,function(data){
+				//console.log(data);
+				//return data;
+			})
+			.done(function(data) {
+
+				List=data.list;
+				//console.log(List[0]);
+				Str="";
+				var K=-1;
+				for(i=0;i<List.length;i++)
+				{
+					var Dt=new Date(List[i].dt_txt);
+					//console.log(Dt)
+					if(Dt.getDate()!=K)
+					{
+						let weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+						MaxTemp=List[i].main.temp_max;
+						MinTemp=List[i].main.temp_min;
+						WIcon=GetWeatherIcon(List[i].weather[0].icon)	;
+						Str+="<tr>";
+						Str+="   <td class='day'>"+weekday[Dt.getDay()]+"</td>";
+						Str+="   <td class='bright weather-icon'><span class='"+WIcon+"'></span></td>";
+						Str+="   <td class='align-right bright max-temp'>"+MaxTemp+"</td>";
+						Str+="   <td class='align-right min-temp'>"+MinTemp+"</td>";
+						Str+="</tr>";
+						K=Dt.getDate();
+					}
+				}
+				$("#forcast").html(Str)
+				/*Temp=data.main.temp
+				WIcon=GetWeatherIcon(data.weather[0].icon);
+				Str+="<tr>";
+                        Str+="   <td class='day'>Wed</td>";
+                        Str+="   <td class='bright weather-icon'><span class='wi weathericon wi-day-sunny'></span></td>";
+                        Str+="   <td class='align-right bright max-temp'>28.4</td>";
+                        Str+="   <td class='align-right min-temp'>17.1</td>";
+                        Str+="</tr>";
+				$("#temp").html(parseInt(Temp)+"°C")
+				$("#weathericon").addClass(WIcon)*/
+
+			})
+			.fail(function(err) {console.log("Fail");});
+		}
+		GetForcast();
+
+		function NewsScroll()
+		{
+				//console.log(Cnt);
+				$("#NewsTime").html(News[Cnt].published);
+				$("#News").html(News[Cnt].title+"<br>-"+News[Cnt].source);
+				Cnt++;
+				if(Cnt>=News.length)
+				{
+					Cnt=0;
+				}
+			}
+
+
+
+		function GetNews(Source)
+		{
+			Url='https://newsapi.org/v2/top-headlines?sources='+Source+'&apiKey=1de2483bbc67478895bbd970b865ff83'
+			$.get(Url,function(data){})
+			.done(function(data) {
+				Str=""
+				//console.log(data);
+				JData=data
+				for(i=0;i<JData.totalResults;i++)
+				{
+					var d = new Date(JData.articles[i].publishedAt);
+
+					News.push({"title":JData.articles[i].title,"published":d,"source":JData.articles[i].source.name})
+				}
+			})
+			.fail(function(err) {console.log("Fail");});
+		}
+
+
+		function ChurnNews()
+		{
+			var Source=['the-times-of-india','google-news','recode','cnn','financial-times','bbc-news'];
+			for(i=0;i<Source.length;i++)
+			{
+				GetNews(Source[i])
+			}
+		}
+		ChurnNews();
+
+
+		function GetEvents()
+		{
+			Url='http://localhost/MagicMirror/api.php?opt=events'
+			$.get(Url,function(data){
+				//console.log(data);
+				//return data;
+			})
+			.done(function(data) {
+				//console.log(data);
+				Opac=[1,1,1,0.933333,0.8,0.666667,0.533333,0.4,0.266667,0.133333]
+				Str="";
+				JData=JSON.parse(data)
+				for(i=0;i<JData.length;i++)
+				{
+					//console.log(JData[i])
+
+					Str+="<tr class='normal'  style='opacity: "+Opac[i]+";'>"
+					Str+="<td class='symbol align-right'><span class='fa fa-fw fa-calendar-check-o '></span></td>"
+					Str+="<td class='title bright'>"+JData[i].name+"</td>"
+					if(parseInt(JData[i].date)<7)
+					{
+						Freq="In "+JData[i].date+" days";
+					}
+					if(parseInt(JData[i].date)>7 && parseInt(JData[i].date)<30)
+					{
+
+						Freq="In "+parseInt(JData[i].date/7)+" weeks";
+					}
+					if(parseInt(JData[i].date)>32 && parseInt(JData[i].date)<365)
+					{
+
+						Freq="In "+parseInt(JData[i].date/30)+" months";
+					}
+					Str+="<td class='time light'>"+Freq+"</td>"
+					Str+="</tr>"
+				}
+				$("#calander").html(Str)
+			})
+			.fail(function(err) {console.log("Fail");});
+		}
+		//GetEvents(); NEED TO UNCOMMENT ONCE HITS COURSE DATA IS PUT IN
+
+		function GetWeatherIcon(icon)
+		{
+			IconSet={
+			"01d": "wi-day-sunny",
+			"02d": "wi-day-cloudy",
+			"03d": "wi-cloudy",
+			"04d": "wi-cloudy-windy",
+			"09d": "wi-showers",
+			"10d": "wi-rain",
+			"11d": "wi-thunderstorm",
+			"13d": "wi-snow",
+			"50d": "wi-fog",
+			"01n": "wi-night-clear",
+			"02n": "wi-night-cloudy",
+			"03n": "wi-night-cloudy",
+			"04n": "wi-night-cloudy",
+			"09n": "wi-night-showers",
+			"10n": "wi-night-rain",
+			"11n": "wi-night-thunderstorm",
+			"13n": "wi-night-snow",
+			"50n": "wi-night-alt-cloudy-windy"
+			}
+			//console.log(IconSet[icon]);
+			return "wi weathericon " + IconSet[icon];
+
+		}
+
+		function Stayform()
+		{
+			Timer=10;
+		}
+
+
+		function GetCTime()
+		{
+			var dt = new Date();
+			var ampm = dt.getHours() >= 12 ? 'pm' : 'am';
+			var h =dt.getHours()>12?(dt.getHours()-12):dt.getHours();
+			if(h==0){h=12;}
+			h =h<10?"0"+h:h;
+
+			var m=dt.getMinutes()<10?"0"+dt.getMinutes():dt.getMinutes();
+			var s=dt.getSeconds()<10?"0"+dt.getSeconds():dt.getSeconds();
+			Str=h+":"+ m+"<sup class='dimmed'>"+s+"</sup><span>"+ampm+"</span>";
+			$("#time").html(Str);
+			day=["Sunday","Monday","Wednesday","Thrusday","Friday","Saturday"];
+			var dayname=day[dt.getDay()];
+			var month=[ 'January', 'February','March', 'April', 'May', 'June', 'July','August', 'September', 'October','November', 'December'];
+			var monthname=month[dt.getMonth()];
+			var Year=dt.getFullYear();
+			var date=dt.getDate();
+
+			Str2=dayname+","+monthname+" "+date+", "+Year;
+			$("#date").html(Str2);
+		}
+
+		function DisplayBack()
+		{
+				if(Timer==0)
+				{
+					VidCnt++;
+					if(VidCnt==Videos.length)
+					{
+						VidCnt=0;
+					}
+					video.src = "videos/"+Videos[VidCnt];
+					$('.formdiv').hide();
+					$('#videoPlayer').show();
+					$('#videoPlayer').trigger('play');
+					clearInterval(DisplayHit);
+					Timer=10;
+				}else
+				{
+					Timer--;
+					$('#TimerSpan').html(Timer);
+				}
+
+		}
+
+
+
+		function SlidersIn()
+		{
+
+			if(SlidersInToggle)
+			{
+				console.log("Slider out");
+				$(".container").fadeOut();
+				SlidersInToggle=!SlidersInToggle;
+			}else
+			{
+          if(X==false)
+          {
+
+					       console.log("Slider in");
+					       $(".container").fadeIn();
+					       SlidersInToggle=!SlidersInToggle;
+          }
+
+			}
+		}
+
+		setInterval(function(){GetCTime();},1000);
+		//setInterval(function(){NewsScroll();},5000);
+		//setInterval(function(){ChurnNews();},30000);
+		setInterval(function(){SlidersIn();},60000);
+
+
+
+		$('#fullname').keypress(function(e){if(e.charCode==13){$('#phone').focus();}});
+		$('#phone').keypress(function(e){if(e.charCode==13){$('#email').focus();}});
+		$('#email').keypress(function(e){if(e.charCode==13){$('#question').focus();}});
+    $('#question').keypress(function(e){if(e.charCode==13){PostPerson()}});
+
+		VidCnt=0;
+		Videos=["2.mp4","1.mp4","3.mp4","4.mp4"];
+		video.onended = function(){
+			console.log(Videos[VidCnt]+" Ended" + VidCnt);
+			if((VidCnt%3==0 && VidCnt!=0))
+			{
+        X=true;
+				$('#videoPlayer').hide();
+				$('#videoPlayer').trigger('pause');
+				$('.formdiv').show();
+				$('#fname').focus();
+				DisplayHit=setInterval(function(){DisplayBack();},1000);
+			}else
+			{
+        X=false;
+				console.log(Videos[VidCnt]+" Starting");
+				VidCnt++;
+				if(VidCnt==Videos.length)
+				{
+					VidCnt=0;
+				}
+				video.src = "videos/"+Videos[VidCnt];
+			}
+
+		}
+
+		function PostPerson()
+		{
+			Url='http://ec2-13-127-106-28.ap-south-1.compute.amazonaws.com:8080/autoregister';
+				$.ajax({
+			        url : Url,
+			        type: 'POST',
+			        dataType: 'json',
+			        data: 	$('#Poster').serialize(),
+				cache : false
+			      })
+				.done(function(response) {
+				        console.log(response);
+				})
+				.fail(function(response) {
+				        console.log(response);
+				})
+		}
+	</script>
+</html>
