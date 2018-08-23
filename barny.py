@@ -78,9 +78,9 @@ urls = (
 
 )
 # Server
-#db = web.database(dbn='mysql', user='root', pw='MIh3TioWViMDEpLQ', db='igothelp2015 ')
+#db = web.database(dbn='mysql', user='root', pw='', db='igothelp2015 ')
 #Local
-db = web.database(dbn='mysql', user='usr_barner', pw='MIh3TioWViMDEpLQ', db='db_barner')
+db = web.database(dbn='mysql', user='', pw='', db='')
 
 class index:
     def GET(self):
@@ -115,10 +115,10 @@ class Commonfunctions:
 
     KEY_SIZE = 16
     BLOCK_SIZE = 32
-    KEY="345dsfdf32432SDGGF234dksj4djKJKJ"
-    BASEDOC='http://ec2-13-126-133-191.ap-south-1.compute.amazonaws.com/BarnPort'
-    BASEURL='http://ec2-13-126-133-191.ap-south-1.compute.amazonaws.com:8080/'
-    BASEFOLDER='/var/www/html/BarnPort'
+    KEY=""
+    BASEDOC='http://ec2-13-126-133-191.ap-south-1.compute.amazonaws.com/'
+    BASEURL='http://ec2-13-126-133-191.ap-south-1.compute.amazonaws.com'
+    BASEFOLDER='/var/www/html/'
     def SMSEmailLog(self,To,From,Type,API,Message):
         try:
               db.insert('smsEmailLog',recepient=To,frm=From,details=Type,apiCall=API,message=Message)
@@ -177,7 +177,7 @@ class Commonfunctions:
             mail = smtplib.SMTP('smtp.gmail.com', 587)
             mail.ehlo()
             mail.starttls()
-            mail.login('dev@spread.ooo', 'dev@spread')
+            mail.login('', '')
             mail.sendmail(From,To, msg.as_string())
             mail.quit()
             status = {"status": "Sucess", "message": "Mail Sent","statusCode":200,"MailSent":True}
@@ -205,7 +205,7 @@ class Commonfunctions:
             return  json.dumps(status)
     def SendNotif(self, To, Msg,Title):
         try:
-            push_service = FCMNotification(api_key="AAAAZdwjlrY:APA91bEeCt2WofMRc5EzYAe10xTjSGaWSiVlIGdjGfefPWH9J6FnWUnmePXMcB0cGOG5GUbgKLkb-3TYHpvuS25yqbXPfwAW-bUorJRtY0XxPe-bpZNB3c6ktWiMjPFdtoxQueCmx3Uf")
+            push_service = FCMNotification(api_key="")
             registration_id = To
             message_title = Title
             message_body = Msg
@@ -220,7 +220,7 @@ class Commonfunctions:
             print To
             print To.split(",")
             headers = {'Content-Type': 'application/json',}
-            params={"app_id": "83afddaa-785f-4bfc-9bdc-39804fe77c26",
+            params={"app_id": "",
             "include_player_ids": To.split(","),
             "data": {"foo": "bar"},
             "headings": {"en": Title},
